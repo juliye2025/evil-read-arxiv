@@ -59,26 +59,42 @@ def main():
             "last_updated": date
         }
 
+    try:
+        year = int(date[:4])
+    except (ValueError, IndexError):
+        year = datetime.now().year
+
     paper_node = {
         "id": args.paper_id,
         "title": args.title,
-        "year": int(date[:4]),
+        "year": year,
         "domain": args.domain,
         "quality_score": args.score,
         "tags": ["论文笔记", args.domain],
         "analyzed": True
     }
 
-    existing_nodes = {node["id"]: i for i, node in enumerate(graph["nodes"])}
+    # 安全构建节点索引（跳过无 id 的节点）
+    existing_nodes = {
+        node.get("id"): i
+        for i, node in enumerate(graph["nodes"])
+        if node.get("id")
+    }
     if args.paper_id in existing_nodes:
         graph["nodes"][existing_nodes[args.paper_id]].update(paper_node)
     else:
         graph["nodes"].append(paper_node)
 
     if args.related:
-        existing_edges = {(edge["source"], edge["target"]) for edge in graph["edges"]}
+        # 安全构建边索引（跳过无 source/target 的边）
+        existing_edges = {
+            (edge.get("source"), edge.get("target"))
+            for edge in graph["edges"]
+            if edge.get("source") and edge.get("target")
+        }
         for related_id in args.related:
-            if related_id and (args.paper_id, related_id) not in existing_edges:
+            # 防止自引用
+            if related_id and related_id != args.paper_id and (args.paper_id, related_id) not in existing_edges:
                 graph["edges"].append({
                     "source": args.paper_id,
                     "target": related_id,
@@ -88,8 +104,12 @@ def main():
 
     graph["last_updated"] = date
 
-    with open(graph_path, 'w', encoding='utf-8') as f:
-        json.dump(graph, f, ensure_ascii=False, indent=2)
+    try:
+        with open(graph_path, 'w', encoding='utf-8') as f:
+            json.dump(graph, f, ensure_ascii=False, indent=2)
+    except (IOError, TypeError) as e:
+        logger.error("写入图谱失败: %s", e)
+        sys.exit(1)
 
     print(f"图谱已更新: {graph_path}")
     print(f"节点数: {len(graph['nodes'])}")

@@ -7,6 +7,10 @@ vault_path: "/path/to/your/obsidian/vault"
 # Papers 目录相对于 vault 的路径（可选，默认为 20_Research/Papers）
 papers_dir: "20_Research/Papers"
 
+# Semantic Scholar API Key（可选，配置后可减少 429 限流）
+# 免费申请: https://www.semanticscholar.org/product/api#api-key
+# semantic_scholar_api_key: "your-api-key-here"
+
 # 研究兴趣配置（必填）
 research_domains:
   # 研究领域名称可以自定义
@@ -59,3 +63,11 @@ excluded_keywords:
   - "review"
   - "workshop"
   - "survey"
+
+# 自定义通用词过滤列表（可选）
+# 这些词在自动关键词链接时会被跳过，不会被替换为 wikilink
+# 默认已包含常见英语功能词和通用 ML 术语，此处可添加额外的过滤词
+# extra_common_words:
+#   - "dataset"
+#   - "results"
+#   - "performance"

@@ -87,11 +87,15 @@ def parse_markdown_lines(content: str) -> List[Tuple[str, str, str, bool]]:
         # 检查行内代码
         inline_code_matches = list(re.finditer(r'`[^`]+`', line))
         if inline_code_matches:
-            # 将行内代码替换为占位符
+            # 将行内代码替换为占位符（使用计数器，避免 pop 导致的索引错误）
             placeholders = []
-            for match in inline_code_matches:
-                placeholders.append(f'__CODE_{len(placeholders)}__')
-            processed_content = re.sub(r'`[^`]+`', lambda m: placeholders.pop(0), line)
+            counter = [0]
+            def _replace_code(m):
+                idx = counter[0]
+                placeholders.append(m.group(0))
+                counter[0] += 1
+                return f'__CODE_{idx}__'
+            processed_content = re.sub(r'`[^`]+`', _replace_code, line)
             line_type = 'inline_code'
 
         # 检查图片（必须在 wikilink 之前，因为 ![[x]] 也包含 [[x]]）
@@ -169,8 +173,6 @@ def link_keywords_in_text(
             if note_paths:
                 # 使用第一个笔记路径
                 note_path = note_paths[0]
-                # 构建 wikilink：路径|关键词，这样显示的是关键词，链接到具体笔记
-                wikilink = f'[[{note_path}|{keyword}]]'
 
                 # 替换所有匹配（从后往前替换，避免索引变化）
                 for match in reversed(matches):
@@ -185,6 +187,10 @@ def link_keywords_in_text(
                     if bracket_before != -1 and bracket_after != -1 and bracket_before < start and bracket_after > end:
                         # 这个匹配已经在 wikilink 中，跳过
                         continue
+
+                    # 使用原文中匹配到的文本，保留原始大小写
+                    original_text = match.group(0)
+                    wikilink = f'[[{note_path}|{original_text}]]'
 
                     # 替换为 wikilink
                     result = result[:start] + wikilink + result[end:]

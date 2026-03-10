@@ -41,9 +41,13 @@ def extract_arxiv_source(arxiv_id, temp_dir):
             content = response.content if response.status_code == 200 else None
             status = response.status_code
         else:
-            req = urllib.request.urlopen(source_url, timeout=60)
-            content = req.read()
-            status = req.status
+            try:
+                req = urllib.request.urlopen(source_url, timeout=60)
+                content = req.read()
+                status = req.status
+            except urllib.error.HTTPError as http_err:
+                logger.error("HTTP错误 %d: %s", http_err.code, http_err.reason)
+                return False
 
         if status == 200 and content:
             tar_path = os.path.join(temp_dir, f"{arxiv_id}.tar.gz")
@@ -52,10 +56,12 @@ def extract_arxiv_source(arxiv_id, temp_dir):
             print(f"源码包已下载: {tar_path}")
 
             with tarfile.open(tar_path, 'r:gz') as tar:
-                # 过滤危险路径，防止路径遍历攻击
+                # 过滤危险路径和符号链接，防止路径遍历攻击
                 safe_members = []
                 for member in tar.getmembers():
                     if member.name.startswith('/') or '..' in member.name:
+                        continue
+                    if member.issym() or member.islnk():
                         continue
                     safe_members.append(member)
                 tar.extractall(path=temp_dir, members=safe_members)
@@ -114,42 +120,49 @@ def extract_pdf_figures(pdf_path, output_dir):
     """从PDF中提取图片（备选方案）"""
     print("从PDF直接提取图片（备选方案）...")
 
-    pdf_doc = fitz.open(pdf_path)
+    try:
+        pdf_doc = fitz.open(pdf_path)
+    except Exception as e:
+        logger.error("无法打开PDF文件: %s (%s)", pdf_path, e)
+        return []
+
     image_list = []
 
-    for page_num in range(len(pdf_doc)):
-        page = pdf_doc[page_num]
-        image_list_page = page.get_images(full=True)
+    try:
+        for page_num in range(len(pdf_doc)):
+            page = pdf_doc[page_num]
+            image_list_page = page.get_images(full=True)
 
-        if image_list_page:
-            for img_index, img in enumerate(image_list_page):
-                xref = img[0]
-                try:
-                    base_image = pdf_doc.extract_image(xref)
-                except Exception as e:
-                    logger.warning("  跳过无法提取的图片 (page %d, xref %d): %s", page_num + 1, xref, e)
-                    continue
+            if image_list_page:
+                for img_index, img in enumerate(image_list_page):
+                    xref = img[0]
+                    try:
+                        base_image = pdf_doc.extract_image(xref)
+                    except Exception as e:
+                        logger.warning("  跳过无法提取的图片 (page %d, xref %d): %s", page_num + 1, xref, e)
+                        continue
 
-                if base_image:
-                    image_bytes = base_image['image']
-                    image_ext = base_image['ext']
+                    if base_image:
+                        image_bytes = base_image['image']
+                        image_ext = base_image['ext']
 
-                    filename = f'page{page_num + 1}_fig{img_index + 1}.{image_ext}'
-                    filepath = os.path.join(output_dir, filename)
+                        filename = f'page{page_num + 1}_fig{img_index + 1}.{image_ext}'
+                        filepath = os.path.join(output_dir, filename)
 
-                    with open(filepath, 'wb') as img_file:
-                        img_file.write(image_bytes)
+                        with open(filepath, 'wb') as img_file:
+                            img_file.write(image_bytes)
 
-                    image_list.append({
-                        'page': page_num + 1,
-                        'index': img_index + 1,
-                        'filename': filename,
-                        'path': f'images/{filename}',
-                        'size': len(image_bytes),
-                        'ext': image_ext
-                    })
+                        image_list.append({
+                            'page': page_num + 1,
+                            'index': img_index + 1,
+                            'filename': filename,
+                            'path': f'images/{filename}',
+                            'size': len(image_bytes),
+                            'ext': image_ext
+                        })
+    finally:
+        pdf_doc.close()
 
-    pdf_doc.close()
     return image_list
 
 
@@ -161,21 +174,23 @@ def extract_from_pdf_figures(figures_pdf, output_dir):
     doc = fitz.open(figures_pdf)
     filename = os.path.splitext(os.path.basename(figures_pdf))[0]
 
-    for i in range(len(doc)):
-        page = doc[i]
-        pix = page.get_pixmap(dpi=150)
-        output_name = f'{filename}_page{i+1}.png'
-        output_path = os.path.join(output_dir, output_name)
-        pix.save(output_path)
+    try:
+        for i in range(len(doc)):
+            page = doc[i]
+            pix = page.get_pixmap(dpi=150)
+            output_name = f'{filename}_page{i+1}.png'
+            output_path = os.path.join(output_dir, output_name)
+            pix.save(output_path)
 
-        extracted.append({
-            'filename': output_name,
-            'path': f'images/{output_name}',
-            'size': len(pix.tobytes()),
-            'ext': 'png'
-        })
+            extracted.append({
+                'filename': output_name,
+                'path': f'images/{output_name}',
+                'size': os.path.getsize(output_path),  # 使用实际文件大小
+                'ext': 'png'
+            })
+    finally:
+        doc.close()
 
-    doc.close()
     return extracted
 
 

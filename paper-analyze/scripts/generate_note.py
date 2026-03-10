@@ -205,18 +205,28 @@ def main():
     vault_root = get_vault_path(args.vault)
     papers_dir = os.path.join(vault_root, "20_Research", "Papers")
     date = datetime.now().strftime("%Y-%m-%d")
-    paper_title_safe = args.title
-    for ch in ' /\\:*?"<>|':
-        paper_title_safe = paper_title_safe.replace(ch, "_")
 
-    note_dir = os.path.join(papers_dir, args.domain)
+    # 清理文件名中的非法字符
+    import re
+    paper_title_safe = re.sub(r'[ /\\:*?"<>|]+', '_', args.title).strip('_')
+
+    # 校验域名，防止路径穿越
+    domain = args.domain.strip('/\\').replace('..', '')
+    if not domain:
+        domain = '其他'
+
+    note_dir = os.path.join(papers_dir, domain)
     os.makedirs(note_dir, exist_ok=True)
 
     note_path = os.path.join(note_dir, f"{paper_title_safe}.md")
-    content = generate_note_content(args.paper_id, args.title, args.authors, args.domain, date)
+    content = generate_note_content(args.paper_id, args.title, args.authors, domain, date)
 
-    with open(note_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+    try:
+        with open(note_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except IOError as e:
+        logger.error("写入笔记失败: %s", e)
+        sys.exit(1)
 
     print(f"笔记已生成: {note_path}")
     print(f"请手动编辑笔记内容，替换占位符为实际分析结果")

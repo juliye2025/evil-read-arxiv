@@ -105,7 +105,7 @@ def scan_notes_directory(papers_dir: Path) -> List[Dict]:
     # 递归查找所有 .md 文件
     for md_file in papers_dir.rglob('*.md'):
         try:
-            with open(md_file, 'r', encoding='utf-8') as f:
+            with open(md_file, 'r', encoding='utf-8', errors='replace') as f:
                 content = f.read()
 
             # 解析 frontmatter
@@ -161,40 +161,36 @@ def build_keyword_index(notes: List[Dict]) -> Dict[str, List[str]]:
     Returns:
         关键词映射字典
     """
-    keyword_index = {}
+    # 使用 set 进行去重，避免 O(n) 的 list in 操作
+    keyword_sets: Dict[str, set] = {}
+
+    def _add_keyword(keyword_lower: str, path: str):
+        if 3 <= len(keyword_lower) <= 30 and keyword_lower not in COMMON_WORDS:
+            if keyword_lower not in keyword_sets:
+                keyword_sets[keyword_lower] = set()
+            keyword_sets[keyword_lower].add(path)
 
     for note in notes:
         # 优先使用从标题提取的关键词
         for keyword in note['title_keywords']:
-            keyword_lower = keyword.lower()
-            if len(keyword_lower) >= 3 and len(keyword_lower) <= 30:
-                if keyword_lower not in COMMON_WORDS:
-                    if keyword_lower not in keyword_index:
-                        keyword_index[keyword_lower] = []
-                    if note['path'] not in keyword_index[keyword_lower]:
-                        keyword_index[keyword_lower].append(note['path'])
+            _add_keyword(keyword.lower(), note['path'])
 
         # 添加从 tags 提取的关键词
         for keyword in note['tag_keywords']:
-            keyword_lower = keyword.lower()
-            if len(keyword_lower) >= 3 and len(keyword_lower) <= 30:
-                if keyword_lower not in COMMON_WORDS:
-                    if keyword_lower not in keyword_index:
-                        keyword_index[keyword_lower] = []
-                    if note['path'] not in keyword_index[keyword_lower]:
-                        keyword_index[keyword_lower].append(note['path'])
+            _add_keyword(keyword.lower(), note['path'])
 
         # 使用短名称（文件名）作为关键词，但只添加主要部分
         if 'short_name' in note:
             short_name = note['short_name']
             # 移除版本号和常见后缀
-            clean_short = re.sub(r'-\d{4}\.\d{5}$', '', short_name)
-            clean_short = re.sub(r'-v\d+$', '', clean_short)
+            clean_short = re.sub(r'(-\d{4}\.\d{4,5}|-v\d+)$', '', short_name)
 
             # 如果清理后的短名称长度合适，添加到索引
             if 3 <= len(clean_short) <= 40 and clean_short.lower() not in COMMON_WORDS:
-                keyword_index[clean_short.lower()] = [note['path']]
+                _add_keyword(clean_short.lower(), note['path'])
 
+    # 将 set 转换为 list 输出
+    keyword_index = {k: list(v) for k, v in keyword_sets.items()}
     return keyword_index
 
 
