@@ -18,6 +18,16 @@ import urllib.parse
 
 logger = logging.getLogger(__name__)
 
+
+def title_to_note_filename(title: str) -> str:
+    """将论文标题转换为 Obsidian 笔记文件名（与 generate_note.py 保持一致）。
+
+    使用与 paper-analyze/scripts/generate_note.py 完全相同的规则，
+    确保 conf-papers 生成的 wikilink 路径能正确指向 paper-analyze 创建的文件。
+    """
+    filename = re.sub(r'[ /\\:*?"<>|]+', '_', title).strip('_')
+    return filename
+
 try:
     import requests
     HAS_REQUESTS = True
@@ -739,6 +749,9 @@ def main():
         p.pop('s2_title_similarity', None)
         p.pop('categories', None)
         p.pop('summary', None)  # 保留 abstract，去掉重复的 summary
+        # 为每篇论文补充 note_filename，与 generate_note.py 的文件名规则保持一致
+        # 这样 conf-papers 生成的 wikilink 可以直接使用此字段，无需自行推断
+        p['note_filename'] = title_to_note_filename(p.get('title', ''))
 
     # 准备输出
     output = {

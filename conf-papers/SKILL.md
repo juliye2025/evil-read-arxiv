@@ -207,7 +207,7 @@ cat conf_papers_filtered.json
 - **会议**：{会议} {年份}
 - **引用**：{citationCount} (influential: {influentialCitationCount})
 - **链接**：[DBLP](链接) | [arXiv](链接) | [PDF](链接)
-- **详细报告**：[[详细报告路径]] (自动生成)
+- **详细报告**：[[20_Research/Papers/[domain]/[note_filename]]] (自动生成)
 
 **一句话总结**：[一句话概括论文的核心贡献]
 
@@ -216,6 +216,13 @@ cat conf_papers_filtered.json
 **核心贡献/观点**：
 ...
 ```
+
+**详细报告说明**：
+- 报告路径：`20_Research/Papers/[论文分类]/[note_filename].md`
+- **重要**：使用 JSON 中的 `note_filename` 字段（而非原始标题）拼接 wikilink，确保与 `generate_note.py` 创建的文件名一致
+  - 正确：`[[20_Research/Papers/大模型/Attention_Is_All_You_Need]]`
+  - 错误：`[[20_Research/Papers/大模型/Attention Is All You Need]]`
+- 详细报告由 `paper-analyze` 自动生成，包含完整的论文分析
 
 无 arXiv ID：
 ```markdown
