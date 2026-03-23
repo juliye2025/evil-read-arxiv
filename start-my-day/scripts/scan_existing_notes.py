@@ -171,12 +171,10 @@ def build_keyword_index(notes: List[Dict]) -> Dict[str, List[str]]:
             keyword_sets[keyword_lower].add(path)
 
     for note in notes:
-        # 优先使用从标题提取的关键词
+        # Only use title-extracted keywords (acronyms, model names) — NOT tags.
+        # Tags are organizational labels that appear across many papers (e.g. "evaluation",
+        # "faithfulness", "LLM") and must not be linked to a specific paper path.
         for keyword in note['title_keywords']:
-            _add_keyword(keyword.lower(), note['path'])
-
-        # 添加从 tags 提取的关键词
-        for keyword in note['tag_keywords']:
             _add_keyword(keyword.lower(), note['path'])
 
         # 使用短名称（文件名）作为关键词，但只添加主要部分

@@ -171,7 +171,10 @@ def link_keywords_in_text(
             # 获取笔记路径
             note_paths = filtered_keywords[keyword]
             if note_paths:
-                # 使用第一个笔记路径
+                # Skip keywords shared by multiple papers — they are too generic to link
+                # to any specific paper (e.g. "evaluation" tagged on 50+ papers).
+                if len(note_paths) > 1:
+                    continue
                 note_path = note_paths[0]
 
                 # 替换所有匹配（从后往前替换，避免索引变化）
