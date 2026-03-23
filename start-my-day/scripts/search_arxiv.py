@@ -640,6 +640,8 @@ def calculate_quality_score(summary: str) -> float:
     Returns:
         质量评分 (0-3)
     """
+    if not summary:
+        return 0.0
     score = 0.0
     summary_lower = summary.lower()
 
