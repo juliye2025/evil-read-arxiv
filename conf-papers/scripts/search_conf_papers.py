@@ -68,6 +68,9 @@ DBLP_VENUES = {
     "AAAI": {"toc": "conf/aaai", "toc_name": "aaai{year}"},
     "NeurIPS": {"toc": "conf/nips", "toc_name": "neurips{year}"},
     "ICML": {"toc": "conf/icml", "toc_name": "icml{year}"},
+    "MICCAI": {"toc": "conf/miccai", "toc_name": None, "venue_query": "MICCAI"},  # MICCAI toc 不稳定，用 venue+year
+    "ACL": {"toc": "conf/acl", "toc_name": "acl{year}"},
+    "EMNLP": {"toc": "conf/emnlp", "toc_name": None, "venue_query": "EMNLP"},  # EMNLP toc 不稳定，用 venue+year
 }
 
 # 会议 -> arXiv 分类映射（用于相关性评分中的分类匹配加分）
@@ -79,6 +82,9 @@ VENUE_TO_CATEGORIES = {
     "ICML": ["cs.LG"],
     "NeurIPS": ["cs.LG", "cs.AI", "cs.CL"],
     "AAAI": ["cs.AI"],
+    "MICCAI": ["cs.CV", "eess.IV"],
+    "ACL": ["cs.CL"],
+    "EMNLP": ["cs.CL"],
 }
 
 # 评分权重（去掉新近性维度，因为年份由用户指定）
@@ -94,7 +100,7 @@ POPULARITY_INFLUENTIAL_CITATION_FULL_SCORE = 100
 # Semantic Scholar 配置
 S2_API_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 S2_PAPER_URL = "https://api.semanticscholar.org/graph/v1/paper"
-S2_FIELDS = "title,abstract,citationCount,influentialCitationCount,externalIds,url,authors"
+S2_FIELDS = "title,abstract,citationCount,influentialCitationCount,externalIds,url,authors,authors.affiliations"
 S2_BATCH_URL = "https://api.semanticscholar.org/graph/v1/paper/batch"
 S2_API_KEY = None
 
@@ -458,6 +464,17 @@ def enrich_with_semantic_scholar(papers: List[Dict], max_retries: int = 3) -> Li
 
                     if not paper.get('authors') and best_match.get('authors'):
                         paper['authors'] = [a.get('name', '') for a in best_match['authors'] if a.get('name')]
+
+                    # 提取 affiliation 信息
+                    if best_match.get('authors'):
+                        affiliations = []
+                        for a in best_match['authors']:
+                            for affil in (a.get('affiliations') or []):
+                                name = affil.get('name', '') if isinstance(affil, dict) else str(affil)
+                                if name and name not in affiliations:
+                                    affiliations.append(name)
+                        if affiliations:
+                            paper['affiliations'] = affiliations
 
                     paper['s2_matched'] = True
                     paper['s2_title_similarity'] = round(best_sim, 2)

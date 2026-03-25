@@ -144,13 +144,15 @@ cat conf_papers_filtered.json
 
 #### 论文列表（统一格式，按评分排序）
 
+**当 `language: "zh"` 时使用中文格式**：
 ```markdown
 ### [[论文名字]]
 - **作者**：[作者列表]
+- **机构**：[机构名称]
 - **会议**：{CVPR/ICLR/...} {年份}
 - **引用**：{citationCount} (influential: {influentialCitationCount})
 - **链接**：[DBLP](链接) | [arXiv](链接) | [PDF](链接)
-- **笔记**：[[已有笔记路径]] 或 <<无>>
+- **笔记**：[[已有笔记路径]] 或 —
 
 **一句话总结**：[一句话概括论文的核心贡献]
 
@@ -160,6 +162,28 @@ cat conf_papers_filtered.json
 - [贡献点3]
 
 **关键结果**：[从摘要中提取的最重要结果]
+
+---
+```
+
+**当 `language: "en"` 时使用英文格式**：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Conference**: {CVPR/ICLR/...} {year}
+- **Citations**: {citationCount} (influential: {influentialCitationCount})
+- **Links**: [DBLP](link) | [arXiv](link) | [PDF](link)
+- **Notes**: [[existing_note_path]] or —
+
+**One-line Summary**: [one-line summary of core contribution]
+
+**Core Contributions**:
+- [Contribution 1]
+- [Contribution 2]
+- [Contribution 3]
+
+**Key Results**: [most important results from abstract]
 
 ---
 ```
@@ -200,10 +224,11 @@ cat conf_papers_filtered.json
 
 **步骤2：在推荐笔记中插入图片和链接**
 
-有 arXiv ID + 有图片：
+有 arXiv ID + 有图片（`language: "zh"`）：
 ```markdown
 ### [[论文名字]]
 - **作者**：[作者列表]
+- **机构**：[机构名称]
 - **会议**：{会议} {年份}
 - **引用**：{citationCount} (influential: {influentialCitationCount})
 - **链接**：[DBLP](链接) | [arXiv](链接) | [PDF](链接)
@@ -217,17 +242,39 @@ cat conf_papers_filtered.json
 ...
 ```
 
+有 arXiv ID + 有图片（`language: "en"`）：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Conference**: {conference} {year}
+- **Citations**: {citationCount} (influential: {influentialCitationCount})
+- **Links**: [DBLP](link) | [arXiv](link) | [PDF](link)
+- **Detailed Report**: [[20_Research/Papers/[domain]/[note_filename]]] (auto-generated)
+
+**One-line Summary**: [one-line summary]
+
+![paper image|600](image_path)
+
+**Core Contributions**:
+...
+```
+
 **详细报告说明**：
 - 报告路径：`20_Research/Papers/[论文分类]/[note_filename].md`
 - **重要**：使用 JSON 中的 `note_filename` 字段（而非原始标题）拼接 wikilink，确保与 `generate_note.py` 创建的文件名一致
   - 正确：`[[20_Research/Papers/大模型/Attention_Is_All_You_Need]]`
   - 错误：`[[20_Research/Papers/大模型/Attention Is All You Need]]`
+- **论文分类（domain）命名规则**：domain 名称必须与 `paper-analyze` 实际创建的目录名完全一致，**不得截断**
+  - 正确：`[[20_Research/Papers/Foundation Models & LLM/...]]`
+  - 错误：`[[20_Research/Papers/Foundation]]`（截断了 "Models & LLM" 部分）
 - 详细报告由 `paper-analyze` 自动生成，包含完整的论文分析
 
-无 arXiv ID：
+无 arXiv ID（`language: "zh"`）：
 ```markdown
 ### [[论文名字]]
 - **作者**：[作者列表]
+- **机构**：[机构名称]
 - **会议**：{会议} {年份}
 - **引用**：{citationCount} (influential: {influentialCitationCount})
 - **链接**：[DBLP](链接)
@@ -236,6 +283,22 @@ cat conf_papers_filtered.json
 **一句话总结**：[一句话概括论文的核心贡献]
 
 **核心贡献/观点**：
+...
+```
+
+无 arXiv ID（`language: "en"`）：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Conference**: {conference} {year}
+- **Citations**: {citationCount} (influential: {influentialCitationCount})
+- **Links**: [DBLP](link)
+- **Note**: No arXiv version, cannot auto-extract images
+
+**One-line Summary**: [one-line summary]
+
+**Core Contributions**:
 ...
 ```
 

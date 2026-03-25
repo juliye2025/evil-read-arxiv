@@ -186,7 +186,10 @@ cat arxiv_filtered.json
 ### 4.2 创建推荐笔记文件
 
 1. **创建推荐笔记文件**
-   - 文件名：`10_Daily/YYYY-MM-DD论文推荐.md`
+   - 文件名（根据语言设置）：
+     - 中文（`language: "zh"`）：`10_Daily/YYYY-MM-DD论文推荐.md`
+     - 英文（`language: "en"`）：`10_Daily/YYYY-MM-DD-paper-recommendations.md`
+   - 使用变量：`10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md`（其中 `NOTE_SUFFIX` 在语言检测阶段已设置）
    - 必须包含属性：
      - `keywords`: 当天推荐论文的关键词（逗号分隔，从论文标题和摘要中提取）
      - `tags`: ["llm-generated", "daily-paper-recommend"]
@@ -246,13 +249,14 @@ tags: ["llm-generated", "daily-paper-recommend"]
 
 所有论文按评分从高到低排列，使用统一格式
 
+**当 `language: "zh"` 时使用中文格式**：
 ```markdown
 ### [[论文名字]]
 - **作者**：[作者列表]
 - **机构**：[机构名称]
 - **链接**：[arXiv](链接) | [PDF](链接)
 - **来源**：[arXiv]
-- **笔记**：[[已有笔记路径]] 或 <<无>>
+- **笔记**：[[已有笔记路径]] 或 —
 
 **一句话总结**：[一句话概括论文的核心贡献]
 
@@ -262,6 +266,27 @@ tags: ["llm-generated", "daily-paper-recommend"]
 - [贡献点3]
 
 **关键结果**：[从摘要中提取的最重要结果]
+
+---
+```
+
+**当 `language: "en"` 时使用英文格式**：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Links**: [arXiv](link) | [PDF](link)
+- **Source**: arXiv
+- **Notes**: [[existing_note_path]] or —
+
+**One-line Summary**: [one-line summary of core contribution]
+
+**Core Contributions**:
+- [Contribution 1]
+- [Contribution 2]
+- [Contribution 3]
+
+**Key Results**: [most important results from abstract]
 
 ---
 ```
@@ -301,7 +326,7 @@ tags: ["llm-generated", "daily-paper-recommend"]
 
 **步骤2：在推荐笔记中插入图片和链接**
 
-**如果已有笔记**：
+**当 `language: "zh"` 时（如果已有笔记）**：
 ```markdown
 ### [[已有论文名称]]
 - **作者**：[作者列表]
@@ -319,7 +344,7 @@ tags: ["llm-generated", "daily-paper-recommend"]
 ...
 ```
 
-**如果没有笔记**：
+**当 `language: "zh"` 时（如果没有笔记）**：
 ```markdown
 ### [[论文名字]]
 - **作者**：[作者列表]
@@ -336,10 +361,49 @@ tags: ["llm-generated", "daily-paper-recommend"]
 ...
 ```
 
+**当 `language: "en"` 时（如果已有笔记）**：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Links**: [arXiv](link) | [PDF](link)
+- **Source**: arXiv
+- **Detailed Report**: [[existing_note_path]]
+- **Notes**: Existing detailed analysis
+
+**One-line Summary**: [one-line summary]
+
+![existing image|600](existing_image_path)
+
+**Core Contributions**:
+...
+```
+
+**当 `language: "en"` 时（如果没有笔记）**：
+```markdown
+### [[paper_note_filename|Paper Title]]
+- **Authors**: [author list]
+- **Affiliation**: [affiliation or "Not specified"]
+- **Links**: [arXiv](link) | [PDF](link)
+- **Source**: arXiv
+- **Detailed Report**: [[detailed_report_path]] (auto-generated)
+
+**One-line Summary**: [one-line summary]
+
+![new extracted image|600](new_image_path)
+
+**Core Contributions**:
+...
+```
+
 **图片说明**：
 - 图片路径：`20_Research/Papers/[论文分类]/images/[论文ID]_fig1.png`
 - 宽度设置为 600px
 - 自动提取，无需手动操作
+- **禁止 URL 编码**：Obsidian 的图片语法 `![alt|600](path)` 必须使用原始路径，**不得**对空格、`&` 等字符做 percent-encoding。
+  - 正确：`![img|600](20_Research/Papers/Multimodal & Vision-Language/ThinkJEPA/images/arch_page1.png)`
+  - 错误：`![img|600](20_Research/Papers/Multimodal%20%26%20Vision-Language/ThinkJEPA/images/arch_page1.png)`
+  - 此规则同样适用于 wikilink 以外的所有 markdown 图片引用路径
 
 **详细报告说明**：
 - 报告路径：`20_Research/Papers/[论文分类]/[note_filename].md`
@@ -347,6 +411,11 @@ tags: ["llm-generated", "daily-paper-recommend"]
   - 正确：`[[20_Research/Papers/大模型/Hypothesis-Conditioned_Query_Rewriting_for_Decision-Useful_Retrieval]]`
   - 错误：`[[20_Research/Papers/大模型/Hypothesis-Conditioned Query Rewriting for Decision-Useful Retrieval]]`
 - 在"详细报告"字段显示 wikilink：`- **详细报告**：[[20_Research/Papers/[domain]/[note_filename]]]`
+- **论文分类（domain）命名规则**：domain 名称必须与 `paper-analyze` 实际创建的目录名完全一致，**不得截断**。例如：
+  - 正确：`[[20_Research/Papers/Computational Pathology/ReconMIL_...]]`（保留完整域名）
+  - 错误：`[[20_Research/Papers/Computational]]`（截断了 "Pathology" 部分）
+  - 正确：`[[20_Research/Papers/Foundation Models & LLM/...]]`
+  - 错误：`[[20_Research/Papers/Foundation]]`（截断了 "Models & LLM" 部分）
 - 详细报告由 `paper-analyze` 自动生成，包含完整的论文分析
 
 ## 步骤5：自动链接关键词（可选）
@@ -366,8 +435,8 @@ python scripts/scan_existing_notes.py \
 # 步骤3：链接关键词（新增步骤）
 python scripts/link_keywords.py \
   --index existing_notes_index.json \
-  --input 10_Daily/YYYY-MM-DD论文推荐.md \
-  --output 10_Daily/YYYY-MM-DD论文推荐_linked.md
+  --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
+  --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"
 ```
 
 **注意**：
@@ -379,7 +448,7 @@ python scripts/link_keywords.py \
 
 - **搜索范围扩大**：搜索近一个月 + 近一年热门论文
 - **综合推荐评分**：结合相关性、新近性、热门度、质量四个维度
-- **文件名以日期**：保持 `10_Daily/YYYY-MM-DD论文推荐.md` 格式
+- **文件名以日期**：保持 `10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md` 格式（中文：`论文推荐`，英文：`paper-recommendations`）
 - **添加今日概览**：在推荐笔记开头添加"## 今日概览"部分，总结今日论文的主要研究方向、总体趋势、质量分布、研究热点和阅读建议
 - **按评分排序**：所有论文按推荐评分从高到低排列
 - **前3篇特殊处理**：
@@ -473,7 +542,7 @@ python scripts/link_keywords.py \
    - 每篇论文包含：ID、标题、作者、摘要、评分、匹配领域
 
 5. **生成推荐笔记（包含关键词链接）**
-   - 创建 `10_Daily/YYYY-MM-DD论文推荐.md`（使用目标日期）
+   - 创建 `10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md`（使用目标日期，`NOTE_SUFFIX` 依语言设置）
    - **按评分排序**：所有论文按推荐评分从高到低排列
    - **前3篇特殊处理**：
      - 论文名称用 wikilink 格式：`[[论文名字]]`
@@ -636,8 +705,8 @@ python scripts/scan_existing_notes.py \
 # 步骤3：链接关键词（新增步骤）
 python scripts/link_keywords.py \
   --index existing_notes_index.json \
-  --input 10_Daily/YYYY-MM-DD论文推荐.md \
-  --output 10_Daily/YYYY-MM-DD论文推荐_linked.md
+  --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
+  --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"
 ```
 
 **关键特性**：
@@ -681,8 +750,8 @@ python scripts/scan_existing_notes.py \
 # 步骤3：链接关键词（新增步骤）
 python scripts/link_keywords.py \
   --index existing_notes_index.json \
-  --input 10_Daily/YYYY-MM-DD论文推荐.md \
-  --output 10_Daily/YYYY-MM-DD论文推荐_linked.md
+  --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
+  --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"
 ```
 
 **关键特性**：

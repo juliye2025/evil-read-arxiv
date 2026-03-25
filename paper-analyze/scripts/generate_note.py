@@ -226,7 +226,7 @@ status: analyzed
 ## Core Information
 - **Paper ID**: {paper_id}
 - **Authors**: {authors}
-- **Institution**: [Infer from authors or check paper]
+- **Affiliation**: [Infer from authors or check paper]
 - **Publication Date**: {date}
 - **Conference/Journal**: [Infer from categories]
 - **Links**: [arXiv](https://arxiv.org/abs/{paper_id}) | [PDF](https://arxiv.org/pdf/{paper_id})

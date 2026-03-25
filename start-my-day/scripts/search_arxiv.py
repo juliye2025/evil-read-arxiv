@@ -45,7 +45,7 @@ ARXIV_NS = {
 }
 
 SEMANTIC_SCHOLAR_API_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
-SEMANTIC_SCHOLAR_FIELDS = "title,abstract,publicationDate,citationCount,influentialCitationCount,url,authors,externalIds"
+SEMANTIC_SCHOLAR_FIELDS = "title,abstract,publicationDate,citationCount,influentialCitationCount,url,authors,authors.affiliations,externalIds"
 
 # 默认分类关键词映射（当配置中无用户自定义关键词时使用）
 ARXIV_CATEGORY_KEYWORDS = {
@@ -312,6 +312,16 @@ def search_semantic_scholar_hot_papers(
                 # 标记来源
                 p["source"] = "semantic_scholar"
                 p["hot_score"] = inf_cit  # 使用高影响力引用数作为热度分数
+
+                # 提取 affiliation 信息
+                if p.get('authors') and not p.get('affiliations'):
+                    affiliations = []
+                    for a in p['authors']:
+                        for affil in (a.get('affiliations') or []):
+                            name = affil.get('name', '') if isinstance(affil, dict) else str(affil)
+                            if name and name not in affiliations:
+                                affiliations.append(name)
+                    p['affiliations'] = affiliations
                 
                 valid_papers.append(p)
             
@@ -473,13 +483,20 @@ def parse_arxiv_xml(xml_content: str) -> List[Dict]:
             if summary_elem is not None:
                 paper['summary'] = summary_elem.text.strip()
             
-            # 提取作者
+            # 提取作者（及可选的 affiliation）
             authors = []
+            affiliations = []
             for author in entry.findall('atom:author', ARXIV_NS):
                 name_elem = author.find('atom:name', ARXIV_NS)
                 if name_elem is not None:
                     authors.append(name_elem.text)
+                affil_elem = author.find('arxiv:affiliation', ARXIV_NS)
+                if affil_elem is not None and affil_elem.text:
+                    affil = affil_elem.text.strip()
+                    if affil and affil not in affiliations:
+                        affiliations.append(affil)
             paper['authors'] = authors
+            paper['affiliations'] = affiliations  # 可能为空列表
             
             # 提取发布日期
             published_elem = entry.find('atom:published', ARXIV_NS)
@@ -623,6 +640,8 @@ def calculate_quality_score(summary: str) -> float:
     Returns:
         质量评分 (0-3)
     """
+    if not summary:
+        return 0.0
     score = 0.0
     summary_lower = summary.lower()
 

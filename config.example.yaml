@@ -1,78 +1,215 @@
-# evil-read-arxiv 配置文件示例
-# 复制此文件为 config.yaml 并修改为你自己的路径
+# evil-read-arxiv Configuration File Example
+# Copy this file to config.yaml and modify for your own setup
+# Or set OBSIDIAN_VAULT_PATH environment variable and place config.yaml at:
+#   $OBSIDIAN_VAULT_PATH/99_System/Config/research_interests.yaml
 
-# 语言设置 (zh/en)
-# - "zh": 中文报告 (default)
-# - "en": English reports
-language: "zh"
+# Language setting (zh/en)
+# - "zh": Chinese reports
+# - "en": English reports (default)
+language: "en"
 
-# Obsidian Vault 路径（必填）
-vault_path: "/path/to/your/obsidian/vault"
+# Obsidian Vault path (required)
+# Option 1: Use environment variable (recommended)
+#   export OBSIDIAN_VAULT_PATH="/path/to/your/obsidian-vault"
+# Option 2: Set path directly below
+vault_path: "/path/to/your/obsidian-vault"
 
-# Papers 目录相对于 vault 的路径（可选，默认为 20_Research/Papers）
+# Papers directory relative to vault (optional, default: 20_Research/Papers)
 papers_dir: "20_Research/Papers"
 
-# Semantic Scholar API Key（可选，配置后可减少 429 限流）
-# 免费申请: https://www.semanticscholar.org/product/api#api-key
+# Semantic Scholar API Key (optional, reduces 429 rate limiting)
+# Free registration: https://www.semanticscholar.org/product/api#api-key
 # semantic_scholar_api_key: "your-api-key-here"
 
-# 研究兴趣配置（必填）
+# Research interests configuration (required)
 research_domains:
-  # 研究领域名称可以自定义
-  "大模型":
-    # 关键词列表，用于搜索和匹配论文
+  # Domain names can be customized freely
+  "Computational Pathology":
+    # Keywords for searching and matching papers
     keywords:
-      - "pre-training"
-      - "foundation model"
-      - "model architecture"
-      - "large language model"
-      - "LLM"
-      - "transformer"
-    # arXiv 分类（可选）
+      - "pathology"
+      - "histopathology"
+      - "whole slide image"
+      - "WSI"
+      - "digital pathology"
+      - "computational pathology"
+      - "tissue classification"
+      - "tumor detection"
+      - "cancer grading"
+      - "survival prediction"
+      - "multiple instance learning"
+      - "MIL"
+      - "slide-level"
+      - "patch-level"
+      - "nuclei segmentation"
+      - "stain normalization"
+      - "H&E"
+      - "immunohistochemistry"
+      - "biomarker prediction"
+      - "spatial"
+      - "spatial transcriptomics"
+    # arXiv categories (optional)
     arxiv_categories:
+      - "cs.CV"
+      - "eess.IV"
       - "cs.AI"
       - "cs.LG"
-      - "cs.CL"
-    # 优先级（可选，1-10，数值越高越优先）
+      - "q-bio.QM"
+    # Priority (optional, 1-10, higher = higher priority)
     priority: 5
 
-  "多模态技术":
+  "Medical Image Analysis":
+    keywords:
+      - "medical image"
+      - "radiology"
+      - "segmentation"
+      - "clinical"
+      - "diagnosis"
+      - "prognosis"
+      - "healthcare"
+      - "biomedical"
+      - "fundus"
+      - "dermatology"
+      - "mammography"
+      - "CT"
+      - "MRI"
+      - "X-ray"
+    arxiv_categories:
+      - "eess.IV"
+      - "cs.CV"
+      - "cs.AI"
+      - "q-bio.QM"
+    priority: 4
+
+  "Diffusion Models":
+    keywords:
+      - "diffusion"
+      - "denoising"
+      - "score-based"
+      - "DDPM"
+      - "stable diffusion"
+      - "latent diffusion"
+      - "image generation"
+      - "image synthesis"
+      - "conditional generation"
+      - "inpainting"
+      - "super-resolution"
+      - "flow matching"
+      - "SDE"
+      - "reverse problem"
+      - "optimal transport"
+    arxiv_categories:
+      - "cs.CV"
+      - "cs.LG"
+      - "eess.IV"
+    priority: 4
+
+  "Multimodal & Vision-Language":
     keywords:
       - "vision-language"
       - "multimodal"
       - "image-text"
-      - "visual"
+      - "visual question answering"
       - "cross-modal"
+      - "CLIP"
+      - "BLIP"
+      - "GPT-4V"
+      - "visual grounding"
+      - "image captioning"
+      - "multimodal large language model"
+      - "MLLM"
+      - "VLM"
     arxiv_categories:
       - "cs.CV"
-      - "cs.MM"
       - "cs.CL"
+      - "cs.MM"
+      - "cs.AI"
     priority: 4
 
-  "智能体":
+  "Agents & Autonomous Systems":
     keywords:
       - "agent"
       - "multi-agent"
       - "orchestration"
       - "autonomous"
       - "planning"
+      - "tool use"
+      - "function calling"
+      - "agentic"
+      - "workflow"
+      - "self-improvement"
+      - "self-evolving"
+      - "evolving"
     arxiv_categories:
       - "cs.AI"
       - "cs.MA"
-      - "cs.RO"
-    priority: 4
+      - "cs.CL"
+    priority: 3
 
-# 排除的关键词（可选）
+  "Reinforcement Learning":
+    keywords:
+      - "reinforcement learning"
+      - "RLHF"
+      - "reward model"
+      - "policy optimization"
+      - "PPO"
+      - "DPO"
+      - "GRPO"
+      - "preference learning"
+      - "human feedback"
+      - "alignment"
+      - "reward design"
+    arxiv_categories:
+      - "cs.LG"
+      - "cs.AI"
+      - "cs.CL"
+    priority: 3
+
+  "Foundation Models & LLM":
+    keywords:
+      - "foundation model"
+      - "large language model"
+      - "LLM"
+      - "pre-training"
+      - "fine-tuning"
+      - "PEFT"
+      - "LoRA"
+      - "adapter"
+      - "in-context learning"
+      - "reasoning"
+      - "chain-of-thought"
+      - "scaling law"
+    arxiv_categories:
+      - "cs.CL"
+      - "cs.AI"
+      - "cs.LG"
+    priority: 3
+
+  "AI Safety & Fairness":
+    keywords:
+      - "fairness"
+      - "bias"
+      - "robustness"
+      - "adversarial"
+      - "interpretability"
+      - "explainability"
+      - "uncertainty"
+      - "calibration"
+      - "out-of-distribution"
+      - "trustworthy"
+    arxiv_categories:
+      - "cs.LG"
+      - "cs.AI"
+      - "cs.CY"
+    priority: 2
+
+# Excluded keywords (optional, papers containing these will be filtered out)
 excluded_keywords:
-  - "3D"
-  - "review"
   - "workshop"
-  - "survey"
 
-# 自定义通用词过滤列表（可选）
-# 这些词在自动关键词链接时会被跳过，不会被替换为 wikilink
-# 默认已包含常见英语功能词和通用 ML 术语，此处可添加额外的过滤词
+# Custom common words filter list (optional)
+# These words will be skipped during automatic keyword linking (wikilink replacement)
+# Defaults already include common English function words and general ML terms
 # extra_common_words:
 #   - "dataset"
 #   - "results"
-#   - "performance"

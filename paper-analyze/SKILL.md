@@ -1075,6 +1075,7 @@ python3 run_paper_analysis.py [ID] [TITLE] [AUTHORS] [DOMAIN] --local-pdf /tmp/p
 2. **图片路径**：使用相对路径`images/xxx`（不指定扩展名，Obsidian会自动识别）
    - **重要**：从arXiv提取的图片通常是`.pdf`格式，Obsidian可以直接显示PDF图片
    - 图片路径应使用实际文件名，如`images/loss_curve.pdf`或`images/figure1.png`
+   - **禁止 URL 编码**：所有图片路径必须使用原始字符，**不得**对空格、`&` 等做 percent-encoding（如 `%20`、`%26`）。Obsidian 无法识别 URL 编码的本地路径。
 3. **wikilinks**：使用`[[论文名]]`格式
 4. **领域推断**：根据论文内容自动推断
 5. **相关论文**：在笔记中引用`[[相关论文]]`，图谱会自动创建边
