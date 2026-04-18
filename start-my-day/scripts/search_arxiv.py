@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-arXiv + Semantic Scholar 混合架构论文搜索脚本
+arXiv + Semantic Scholar (via ai4scholar proxy) 混合架构论文搜索脚本
 用于 start-my-day skill，搜索最近一个月和最近一年的极火、极热门、极优质论文
+
+Semantic Scholar 调用通过 https://ai4scholar.net 代理（原生 S2 API 国内不可直连）。
+API key 从环境变量 AI4SCHOLAR_API_KEY 读取，或配置文件 ai4scholar_api_key 字段。
 """
 
 import xml.etree.ElementTree as ET
@@ -17,16 +20,48 @@ from pathlib import Path
 import urllib.request
 import urllib.parse
 
+# Windows 默认 cp936 控制台会把脚本的 UTF-8 日志显示为乱码，统一强制 UTF-8
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, ValueError):
+    pass
+
 logger = logging.getLogger(__name__)
 
 
-def title_to_note_filename(title: str) -> str:
-    """将论文标题转换为 Obsidian 笔记文件名（与 generate_note.py 保持一致）。
+def make_short_title(title: str, max_len: int = 32) -> str:
+    """提取论文短标题用于笔记文件名与图谱节点显示。
 
-    使用与 paper-analyze/scripts/generate_note.py 完全相同的规则，
-    确保 start-my-day 生成的 wikilink 路径能正确指向 paper-analyze 创建的文件。
+    与 paper-analyze/scripts/update_graph.py::make_short_title 保持一致（不 import
+    是为了避免跨 skill 目录硬编码路径；若后续两边分歧，以 update_graph.py 为准）。
     """
-    filename = re.sub(r'[ /\\:*?"<>|]+', '_', title).strip('_')
+    if not title:
+        return title
+    short = title.split(':', 1)[0].strip()
+    if len(short) > max_len:
+        for sep in (' — ', ' – '):
+            if sep in short:
+                short = short.split(sep, 1)[0].strip()
+                break
+    if len(short) > max_len:
+        truncated = short[: max_len - 1]
+        last_space = truncated.rfind(' ')
+        if last_space > max_len // 2:
+            truncated = truncated[:last_space]
+        short = truncated.rstrip(' ,;-.') + '…'
+    return short or title
+
+
+def title_to_note_filename(title: str) -> str:
+    """将论文标题转换为 Obsidian 笔记文件名。
+
+    新策略（短名优先）：先 make_short_title 取冒号前简称，再做非法字符替换，
+    保证 start-my-day 直接产出短名文件和 wikilink，无需事后 rename_to_short。
+    批内冲突由调用方处理（见 top_papers 的 note_filename 分配循环）。
+    """
+    short = make_short_title(title)
+    filename = re.sub(r'[ /\\:*?"<>|]+', '_', short).strip('_')
     return filename
 
 try:
@@ -44,8 +79,10 @@ ARXIV_NS = {
     'arxiv': 'http://arxiv.org/schemas/atom'
 }
 
-SEMANTIC_SCHOLAR_API_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
-SEMANTIC_SCHOLAR_FIELDS = "title,abstract,publicationDate,citationCount,influentialCitationCount,url,authors,authors.affiliations,externalIds"
+# 通过 ai4scholar 代理访问 Semantic Scholar；接口形状与 S2 原生 /paper/search 一致
+SEMANTIC_SCHOLAR_API_URL = "https://ai4scholar.net/graph/v1/paper/search"
+# 注意：ai4scholar 不支持 authors.affiliations 子字段（会返回 Unrecognized fields 错误）
+SEMANTIC_SCHOLAR_FIELDS = "title,abstract,publicationDate,citationCount,influentialCitationCount,url,authors,externalIds,venue"
 
 # 默认分类关键词映射（当配置中无用户自定义关键词时使用）
 ARXIV_CATEGORY_KEYWORDS = {
@@ -66,9 +103,12 @@ ARXIV_CATEGORY_KEYWORDS = {
 SCORE_MAX = 3.0
 
 # 相关性评分：关键词在标题 / 摘要中匹配的加分
-RELEVANCE_TITLE_KEYWORD_BOOST = 0.5
-RELEVANCE_SUMMARY_KEYWORD_BOOST = 0.3
-RELEVANCE_CATEGORY_MATCH_BOOST = 1.0
+RELEVANCE_TITLE_KEYWORD_BOOST = 1.0
+RELEVANCE_SUMMARY_KEYWORD_BOOST = 0.5
+RELEVANCE_CATEGORY_MATCH_BOOST = 0.3
+# 高优关键词（如 "loco-manipulation", "WBC"）：命中即视为强相关
+RELEVANCE_HIGH_PRIORITY_TITLE_BOOST = 2.5
+RELEVANCE_HIGH_PRIORITY_SUMMARY_BOOST = 1.5
 
 # 新近性阈值（天） -> 对应评分
 RECENCY_THRESHOLDS = [
@@ -120,9 +160,9 @@ def load_research_config(config_path: str) -> Dict:
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        # 读取 Semantic Scholar API Key（如果配置了）
+        # 读取 ai4scholar API Key：环境变量优先，其次配置文件
         global S2_API_KEY
-        S2_API_KEY = config.get('semantic_scholar_api_key')
+        S2_API_KEY = os.environ.get('AI4SCHOLAR_API_KEY') or config.get('ai4scholar_api_key')
         return config
     except Exception as e:
         logger.error("Error loading config: %s", e)
@@ -142,32 +182,101 @@ def load_research_config(config_path: str) -> Dict:
         }
 
 
-def calculate_date_windows(target_date: Optional[datetime] = None) -> Tuple[datetime, datetime, datetime, datetime]:
+def calculate_date_windows(
+    target_date: Optional[datetime] = None,
+    arxiv_days: int = 30,
+    s2_days: int = 365,
+) -> Tuple[datetime, datetime, datetime, datetime]:
     """
-    计算两个时间窗口：最近30天和过去一年（除去最近30天）
-    
+    计算两个时间窗口：arXiv 近期窗口 + S2 历史热门窗口（不与 arXiv 窗口重叠）。
+
     Args:
-        target_date: 基准日期，如果为 None 则使用当前日期
-        
+        target_date: 基准日期，默认当前日期
+        arxiv_days: arXiv 近期窗口天数（含 target_date）
+        s2_days: S2 历史窗口总天数（从 target_date 往前算）；其结束日期会被设为
+                 `target_date - (arxiv_days + 1)` 以保证与 arXiv 窗口不重叠。
+
     Returns:
-        (window_30d_start, window_30d_end, window_1y_start, window_1y_end)
-        - window_30d_start: 30天窗口开始日期
-        - window_30d_end: 30天窗口结束日期（即 target_date）
-        - window_1y_start: 一年窗口开始日期
-        - window_1y_end: 一年窗口结束日期（即 31天前）
+        (arxiv_start, arxiv_end, s2_start, s2_end)
     """
     if target_date is None:
         target_date = datetime.now()
-    
-    # 最近30天窗口: [target_date - 30 days, target_date]
-    window_30d_start = target_date - timedelta(days=30)
-    window_30d_end = target_date
-    
-    # 过去一年窗口（除去最近30天）: [target_date - 365 days, target_date - 31 days]
-    window_1y_start = target_date - timedelta(days=365)
-    window_1y_end = target_date - timedelta(days=31)
-    
-    return window_30d_start, window_30d_end, window_1y_start, window_1y_end
+
+    # arXiv 窗口: [target_date - arxiv_days, target_date]
+    arxiv_start = target_date - timedelta(days=arxiv_days)
+    arxiv_end = target_date
+
+    # S2 窗口: [target_date - s2_days, target_date - (arxiv_days + 1)]
+    s2_start = target_date - timedelta(days=s2_days)
+    s2_end = target_date - timedelta(days=arxiv_days + 1)
+
+    # 防御：若 s2_days <= arxiv_days 导致窗口反转，则让 S2 窗口退化为空区间
+    if s2_end < s2_start:
+        s2_end = s2_start
+
+    return arxiv_start, arxiv_end, s2_start, s2_end
+
+
+def load_recently_recommended_ids(
+    vault_path: str,
+    target_date: Optional[datetime] = None,
+    lookback_days: int = 30
+) -> Set[str]:
+    """扫描 10_Daily/ 下最近 N 天的论文推荐笔记，提取已推荐的 arXiv ID 集合。
+
+    用于在搜索阶段排除"已经推荐过的论文"，避免每天产出几乎相同的清单。
+
+    匹配策略：
+    - 文件名模式：`YYYY-MM-DD论文推荐*.md`（中文）或 `YYYY-MM-DD-paper-recommendations*.md`（英文）
+    - 仅扫描 [target_date - lookback_days, target_date] 时间窗内的文件
+    - 从笔记内文中正则提取 arXiv URL 中的 ID（去除 v1/v2 等版本号）
+
+    Args:
+        vault_path: Obsidian vault 根目录
+        target_date: 参考日期（默认 now）
+        lookback_days: 回溯天数（默认 30，与搜索窗口对齐）
+
+    Returns:
+        已推荐论文的 arXiv ID 集合（无版本号，如 "2604.14732"）
+    """
+    if not vault_path or not os.path.isdir(vault_path):
+        return set()
+    if target_date is None:
+        target_date = datetime.now()
+    cutoff = target_date - timedelta(days=lookback_days)
+
+    daily_dir = os.path.join(vault_path, "10_Daily")
+    if not os.path.isdir(daily_dir):
+        return set()
+
+    fname_re = re.compile(r'^(\d{4}-\d{2}-\d{2})(论文推荐|-paper-recommendations).*\.md$')
+    arxiv_id_re = re.compile(r'arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})', re.IGNORECASE)
+
+    seen = set()
+    scanned_files = 0
+    for entry in os.listdir(daily_dir):
+        m = fname_re.match(entry)
+        if not m:
+            continue
+        try:
+            file_date = datetime.strptime(m.group(1), '%Y-%m-%d')
+        except ValueError:
+            continue
+        if file_date < cutoff or file_date > target_date:
+            continue
+        path = os.path.join(daily_dir, entry)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                text = f.read()
+        except (IOError, OSError):
+            continue
+        scanned_files += 1
+        for hit in arxiv_id_re.findall(text):
+            seen.add(hit)
+
+    logger.info("[Dedup] Scanned %d past recommendation notes (lookback %d days), found %d already-recommended arXiv IDs",
+                scanned_files, lookback_days, len(seen))
+    return seen
 
 
 def search_arxiv_by_date_range(
@@ -221,7 +330,10 @@ def search_arxiv_by_date_range(
         except Exception as e:
             logger.warning("[arXiv] Error (attempt %d/%d): %s", attempt + 1, max_retries, e)
             if attempt < max_retries - 1:
-                wait_time = (2 ** attempt) * 2
+                # arXiv 对 429 较敏感，使用保守退避：10s → 30s → 60s
+                # 官方建议请求间隔 >= 3s，429 后需要更长冷却
+                wait_schedule = [10, 30, 60]
+                wait_time = wait_schedule[min(attempt, len(wait_schedule) - 1)]
                 logger.info("[arXiv] Retrying in %d seconds...", wait_time)
                 time.sleep(wait_time)
             else:
@@ -266,7 +378,11 @@ def search_semantic_scholar_hot_papers(
         "User-Agent": "StartMyDay-PaperFetcher/1.0"
     }
     if S2_API_KEY:
-        headers["x-api-key"] = S2_API_KEY
+        # ai4scholar 代理使用 Bearer 认证（不是 S2 原生的 x-api-key）
+        headers["Authorization"] = f"Bearer {S2_API_KEY}"
+    else:
+        logger.warning("[S2] No AI4SCHOLAR_API_KEY set; ai4scholar 大概率会拒绝请求。"
+                       "请设置环境变量 AI4SCHOLAR_API_KEY 或在配置文件中添加 ai4scholar_api_key。")
     
     logger.info("[S2] Searching hot papers from %s to %s", start_date.date(), end_date.date())
     logger.info("[S2] Query: '%s'", query)
@@ -385,22 +501,35 @@ def search_hot_papers_from_categories(
     all_hot_papers = []
     seen_arxiv_ids = set()
 
-    # 从配置中提取用户自定义的搜索关键词（更精准）
+    # 从配置提取查询：优先 high_priority_keywords，按 domain priority 排序
+    # 每个 domain 拆成多个独立短查询（而不是拼 3 个普通词）
     user_queries = []
     if config:
         domains = config.get('research_domains', {})
-        for domain_name, domain_config in domains.items():
-            keywords = domain_config.get('keywords', [])
-            # 取每个域的前3个关键词组合为查询
-            if keywords:
-                query = ' '.join(keywords[:3])
-                user_queries.append(query)
+        # 按 priority 从高到低排序（此项目约定 priority 数字越大越优先，默认 5）
+        sorted_domains = sorted(
+            domains.items(),
+            key=lambda kv: kv[1].get('priority', 5),
+            reverse=True
+        )
+        for domain_name, domain_config in sorted_domains:
+            high_kw = domain_config.get('high_priority_keywords', []) or []
+            low_kw = domain_config.get('keywords', []) or []
+            # 优先高优词：每个高优词单独作为一个查询（引号触发精确匹配）
+            # 每个 domain 最多取前 3 个高优词，避免查询爆炸
+            for kw in high_kw[:3]:
+                if kw and len(kw) >= 3:
+                    user_queries.append(f'"{kw}"')
+            # 没有高优词的 domain 才用普通关键词兜底（取前 2 个拼一起）
+            if not high_kw and low_kw:
+                user_queries.append(' '.join(low_kw[:2]))
 
     # 如果没有用户关键词，回退到分类关键词
     if not user_queries:
         user_queries = [ARXIV_CATEGORY_KEYWORDS.get(cat, cat) for cat in categories]
 
-    # 去重查询
+    # 去重查询并限制总数（防限速 + 保相关度）
+    MAX_QUERIES = 12
     seen_queries = set()
     unique_queries = []
     for q in user_queries:
@@ -408,6 +537,10 @@ def search_hot_papers_from_categories(
         if q_lower not in seen_queries:
             seen_queries.add(q_lower)
             unique_queries.append(q)
+        if len(unique_queries) >= MAX_QUERIES:
+            break
+    logger.info("[S2] Generated %d high-priority queries: %s",
+                len(unique_queries), unique_queries[:5])
 
     for query in unique_queries:
         
@@ -573,35 +706,62 @@ def calculate_relevance_score(
     max_score = 0
     best_domain = None
     matched_keywords = []
-    
+
+    # 计算配置中出现的最大 priority，用于归一化
+    max_priority = max(
+        (d.get('priority', 5) for d in domains.values()),
+        default=10,
+    ) or 10
+
     # 遍历所有领域
     for domain_name, domain_config in domains.items():
         score = 0
         domain_matched_keywords = []
-        
-        # 关键词匹配
+
+        # 高优关键词（强信号，命中即视为强相关）
+        high_priority_keywords = domain_config.get('high_priority_keywords', [])
+        hp_lower_set = {kw.lower() for kw in high_priority_keywords}
+        for keyword in high_priority_keywords:
+            keyword_lower = keyword.lower()
+            if keyword_lower in title:
+                score += RELEVANCE_HIGH_PRIORITY_TITLE_BOOST
+                domain_matched_keywords.append(f"!{keyword}")  # ! 前缀标记高优命中
+            elif keyword_lower in summary:
+                score += RELEVANCE_HIGH_PRIORITY_SUMMARY_BOOST
+                domain_matched_keywords.append(f"!{keyword}")
+
+        # 普通关键词匹配（跳过已在高优中命中的，避免重复加分）
         keywords = domain_config.get('keywords', [])
         for keyword in keywords:
             keyword_lower = keyword.lower()
+            if keyword_lower in hp_lower_set:
+                continue
             if keyword_lower in title:
                 score += RELEVANCE_TITLE_KEYWORD_BOOST
                 domain_matched_keywords.append(keyword)
             elif keyword_lower in summary:
                 score += RELEVANCE_SUMMARY_KEYWORD_BOOST
                 domain_matched_keywords.append(keyword)
-        
-        # 类别匹配
+
+        # 类别匹配（弱信号）
         domain_categories = domain_config.get('arxiv_categories', [])
         for cat in domain_categories:
             if cat in categories:
                 score += RELEVANCE_CATEGORY_MATCH_BOOST
                 domain_matched_keywords.append(cat)
-        
+
+        # 按领域 priority 加权：priority 越高，该领域匹配的分数保留越多
+        priority = domain_config.get('priority', 5)
+        score *= (priority / max_priority)
+
+        # 归一化到 [0, SCORE_MAX]，防止单 domain 多次命中超过满分基准
+        score = min(score, SCORE_MAX)
+
         if score > max_score:
             max_score = score
             best_domain = domain_name
             matched_keywords = domain_matched_keywords
-    
+
     return max_score, best_domain, matched_keywords
 
 
@@ -856,6 +1016,19 @@ def main():
                         help='Comma-separated list of arXiv categories')
     parser.add_argument('--skip-hot-papers', action='store_true',
                         help='Skip searching hot papers from Semantic Scholar')
+    parser.add_argument('--arxiv-days', type=int, default=30,
+                        help='arXiv 近期窗口天数 (默认 30)；窗口为 [target_date - N, target_date]')
+    parser.add_argument('--s2-days', type=int, default=365,
+                        help='S2 历史窗口总天数 (默认 365)；实际区间为 '
+                             '[target_date - s2_days, target_date - (arxiv_days + 1)]，与 arXiv 窗口互斥')
+    parser.add_argument('--s2-min-quota', type=int, default=0,
+                        help='在最终 top-N 中为 S2 来源论文保留的最小席位数 (默认 0 关闭)。'
+                             '如果自然排序下 S2 篇数不足此配额，则挤掉评分最低的 arXiv 篇目换入最高分 S2 篇目。')
+    parser.add_argument('--exclude-recent-days', type=int, default=30,
+                        help='扫描 10_Daily/ 中过去 N 天的论文推荐笔记，剔除已推荐论文 (0 关闭)')
+    parser.add_argument('--vault', type=str,
+                        default=os.environ.get('OBSIDIAN_VAULT_PATH', ''),
+                        help='Obsidian vault 路径，用于读取 10_Daily/ 做去重 (默认读 OBSIDIAN_VAULT_PATH)')
 
     args = parser.parse_args()
 
@@ -886,10 +1059,15 @@ def main():
         target_date = datetime.now()
         logger.info("Using current date: %s", target_date.strftime('%Y-%m-%d'))
 
-    window_30d_start, window_30d_end, window_1y_start, window_1y_end = calculate_date_windows(target_date)
+    window_30d_start, window_30d_end, window_1y_start, window_1y_end = calculate_date_windows(
+        target_date, arxiv_days=args.arxiv_days, s2_days=args.s2_days
+    )
     logger.info("Date windows:")
-    logger.info("  Recent 30 days: %s to %s", window_30d_start.date(), window_30d_end.date())
-    logger.info("  Past year (31-365 days): %s to %s", window_1y_start.date(), window_1y_end.date())
+    logger.info("  arXiv recent %d days: %s to %s",
+                args.arxiv_days, window_30d_start.date(), window_30d_end.date())
+    logger.info("  S2 history (%d–%d days back): %s to %s",
+                args.arxiv_days + 1, args.s2_days,
+                window_1y_start.date(), window_1y_end.date())
 
     # 解析分类
     categories = args.categories.split(',')
@@ -978,17 +1156,71 @@ def main():
     
     logger.info("Total unique papers after deduplication: %d", len(unique_papers))
 
+    # 排除最近已推荐过的论文（基于 10_Daily/ 笔记）
+    excluded_ids = set()
+    if args.exclude_recent_days > 0 and args.vault:
+        excluded_ids = load_recently_recommended_ids(
+            vault_path=args.vault,
+            target_date=target_date,
+            lookback_days=args.exclude_recent_days,
+        )
+    if excluded_ids:
+        before = len(unique_papers)
+        unique_papers = [p for p in unique_papers
+                         if (p.get('arxiv_id') or p.get('arxivId') or '') not in excluded_ids]
+        logger.info("[Dedup] Excluded %d already-recommended papers (kept %d/%d)",
+                    before - len(unique_papers), len(unique_papers), before)
+
     if len(unique_papers) == 0:
         logger.warning("No papers matched the criteria!")
         return 1
 
-    # 取前 N 篇
+    # 取前 N 篇（可选：为 S2 来源保留最小配额）
     top_papers = unique_papers[:args.top_n]
 
-    # 为每篇论文补充 note_filename，与 generate_note.py 的文件名规则保持一致
-    # 这样 start-my-day 生成的 wikilink 可以直接使用此字段，无需自行推断
+    s2_quota = max(0, min(args.s2_min_quota, args.top_n))
+    if s2_quota > 0:
+        s2_in_top = [p for p in top_papers if p.get('source') == 'semantic_scholar']
+        if len(s2_in_top) < s2_quota:
+            s2_outside = [p for p in unique_papers[args.top_n:]
+                          if p.get('source') == 'semantic_scholar']
+            needed = s2_quota - len(s2_in_top)
+            to_promote = s2_outside[:needed]
+            if to_promote:
+                kept_s2 = s2_in_top
+                top_arxiv = [p for p in top_papers if p.get('source') != 'semantic_scholar']
+                # 按评分升序，挤掉评分最低的 arXiv 篇目
+                top_arxiv.sort(key=lambda x: x['scores']['recommendation'])
+                demoted_count = min(len(to_promote), len(top_arxiv))
+                surviving_arxiv = top_arxiv[demoted_count:]
+                top_papers = kept_s2 + surviving_arxiv + to_promote
+                top_papers.sort(key=lambda x: x['scores']['recommendation'], reverse=True)
+                logger.info("[S2 Quota] Promoted %d S2 papers into top-%d "
+                            "(had %d, required %d, demoted %d arXiv)",
+                            len(to_promote), args.top_n,
+                            len(s2_in_top), s2_quota, demoted_count)
+            else:
+                logger.info("[S2 Quota] Required %d S2 papers in top-%d but only %d available overall",
+                            s2_quota, args.top_n, len(s2_in_top))
+        else:
+            logger.info("[S2 Quota] Natural top-%d already has %d S2 papers (quota %d)",
+                        args.top_n, len(s2_in_top), s2_quota)
+
+    # 为每篇论文补充 note_filename（短名），与 generate_note.py 的文件名规则保持一致
+    # 批内冲突处理：同一批 top-N 若多篇短名相同，所有冲突项追加 _<arxiv_id> 后缀区分
     for paper in top_papers:
         paper['note_filename'] = title_to_note_filename(paper.get('title', ''))
+    stem_to_papers = {}
+    for paper in top_papers:
+        stem_to_papers.setdefault(paper['note_filename'], []).append(paper)
+    for stem, group in stem_to_papers.items():
+        if len(group) <= 1:
+            continue
+        for p in group:
+            aid = p.get('arxiv_id') or p.get('id', '').rsplit('/', 1)[-1]
+            aid = re.sub(r'[ /\\:*?"<>|]+', '_', str(aid)).strip('_')
+            if aid:
+                p['note_filename'] = f"{stem}_{aid}"
 
     # 准备输出
     output = {

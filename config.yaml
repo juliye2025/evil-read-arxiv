@@ -1,0 +1,250 @@
+# evil-read-arxiv Configuration File
+# Embodied AI PhD — 6D rearrangement, loco-manipulation, VLA, etc.
+
+language: "zh"
+
+# Use single quotes (or forward slashes) to avoid YAML escape issues on Windows paths
+vault_path: 'C:\Users\84372\Documents\Papers'
+
+papers_dir: 'C:\Users\84372\Documents\Papers'
+
+# Semantic Scholar API Key (optional)
+# semantic_scholar_api_key: "your-api-key-here"
+
+research_domains:
+
+  "6D Rearrangement & Object Manipulation":
+    keywords:
+      - "rearrangement"
+      - "object rearrangement"
+      - "6D pose"
+      - "6-DoF"
+      - "pose estimation"
+      - "object pose"
+      - "pick and place"
+      - "pick-and-place"
+      - "object placement"
+      - "goal-conditioned manipulation"
+      - "tidying"
+      - "scene rearrangement"
+      - "TAMP"
+      - "task and motion planning"
+      - "grasping"
+      - "dexterous manipulation"
+      - "bimanual manipulation"
+      - "peg insertion"
+      - "assembly"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.CV"
+      - "cs.AI"
+      - "cs.LG"
+    priority: 10
+
+  "Loco-Manipulation & Legged Robots":
+    keywords:
+      - "loco-manipulation"
+      - "loco manipulation"
+      - "mobile manipulation"
+      - "whole-body control"
+      - "whole body control"
+      - "legged robot"
+      - "quadruped"
+      - "humanoid"
+      - "bipedal"
+      - "locomotion"
+      - "terrain traversal"
+      - "parkour"
+      - "teleoperation"
+      - "wheeled-legged"
+      - "dynamic locomotion"
+      - "balance control"
+      - "contact-rich"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.LG"
+      - "cs.AI"
+      - "cs.SY"
+      - "eess.SY"
+    priority: 10
+
+  "Vision-Language-Action Models":
+    keywords:
+      - "vision-language-action"
+      - "VLA"
+      - "robot foundation model"
+      - "generalist robot policy"
+      - "RT-1"
+      - "RT-2"
+      - "OpenVLA"
+      - "Octo"
+      - "pi0"
+      - "π0"
+      - "robot policy"
+      - "language-conditioned manipulation"
+      - "instruction following"
+      - "embodied foundation model"
+      - "multimodal policy"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.CV"
+      - "cs.CL"
+      - "cs.LG"
+      - "cs.AI"
+    priority: 9
+
+  "Imitation Learning & Diffusion Policy":
+    keywords:
+      - "imitation learning"
+      - "behavior cloning"
+      - "behavioral cloning"
+      - "diffusion policy"
+      - "action diffusion"
+      - "flow matching policy"
+      - "ACT"
+      - "action chunking"
+      - "learning from demonstration"
+      - "LfD"
+      - "human demonstration"
+      - "teleoperated data"
+      - "DAgger"
+      - "inverse reinforcement learning"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.LG"
+      - "cs.AI"
+      - "cs.CV"
+    priority: 9
+
+  "Reinforcement Learning for Robotics":
+    keywords:
+      - "reinforcement learning"
+      - "robot learning"
+      - "policy learning"
+      - "sim-to-real"
+      - "sim2real"
+      - "domain randomization"
+      - "PPO"
+      - "SAC"
+      - "model-based RL"
+      - "offline RL"
+      - "residual policy"
+      - "curriculum learning"
+      - "reward design"
+      - "reward shaping"
+      - "GRPO"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.LG"
+      - "cs.AI"
+    priority: 8
+
+  "3D Scene Understanding & Perception":
+    keywords:
+      - "3D scene"
+      - "point cloud"
+      - "NeRF"
+      - "neural radiance field"
+      - "gaussian splatting"
+      - "3D gaussian"
+      - "scene representation"
+      - "occupancy"
+      - "SDF"
+      - "signed distance"
+      - "3D reconstruction"
+      - "scene graph"
+      - "open-vocabulary 3D"
+      - "semantic mapping"
+      - "SLAM"
+      - "depth estimation"
+    arxiv_categories:
+      - "cs.CV"
+      - "cs.RO"
+      - "cs.GR"
+      - "cs.LG"
+    priority: 7
+
+  "World Models & Video Generation for Robotics":
+    keywords:
+      - "world model"
+      - "world models"
+      - "video prediction"
+      - "dynamics model"
+      - "dreamer"
+      - "latent dynamics"
+      - "video generation for robotics"
+      - "physics simulation"
+      - "differentiable simulation"
+      - "neural simulator"
+      - "generative world"
+    arxiv_categories:
+      - "cs.LG"
+      - "cs.RO"
+      - "cs.CV"
+      - "cs.AI"
+    priority: 7
+
+  "Embodied AI & Navigation":
+    keywords:
+      - "embodied AI"
+      - "embodied agent"
+      - "visual navigation"
+      - "object-goal navigation"
+      - "instruction-following navigation"
+      - "vision-language navigation"
+      - "VLN"
+      - "Habitat"
+      - "exploration"
+      - "long-horizon task"
+      - "LLM planner"
+      - "household robot"
+      - "SayCan"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.AI"
+      - "cs.CV"
+      - "cs.CL"
+    priority: 7
+
+  "Simulation & Benchmarks":
+    keywords:
+      - "Isaac Gym"
+      - "Isaac Lab"
+      - "IsaacSim"
+      - "MuJoCo"
+      - "Genesis"
+      - "RoboCasa"
+      - "RoboSuite"
+      - "ManiSkill"
+      - "RLBench"
+      - "LIBERO"
+      - "CALVIN"
+      - "robot simulator"
+      - "physics engine"
+      - "benchmark"
+    arxiv_categories:
+      - "cs.RO"
+      - "cs.LG"
+      - "cs.AI"
+    priority: 5
+
+  "Foundation Models & LLM Reasoning":
+    keywords:
+      - "large language model"
+      - "LLM"
+      - "multimodal large language model"
+      - "MLLM"
+      - "chain-of-thought"
+      - "reasoning"
+      - "tool use"
+      - "code generation"
+      - "fine-tuning"
+      - "LoRA"
+    arxiv_categories:
+      - "cs.CL"
+      - "cs.AI"
+      - "cs.LG"
+    priority: 3
+
+excluded_keywords:
+  - "workshop"

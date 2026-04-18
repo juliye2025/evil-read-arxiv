@@ -46,11 +46,13 @@ You are the Paper Image Extractor for OrbitOS.
 如果源码包不可用或未找到足够图片，回退到从PDF中提取：
 
 ```bash
-python "scripts/extract_images.py" \
+"$PYTHON" "scripts/extract_images.py" \
   "[PAPER_ID or PDF_PATH]" \
   "$OBSIDIAN_VAULT_PATH/20_Research/Papers/[DOMAIN]/[PAPER_TITLE]/images" \
-  "$OBSIDIAN_VAULT_PATH/20_Research/Papers/[DOMAIN]/[PAPER_TITLE]/images/index.md"
+  "$OBSIDIAN_VAULT_PATH/20_Research/Papers/[DOMAIN]/[PAPER_TITLE]/images/index.txt"
 ```
+
+**注意**：使用 `"$PYTHON"` 而非 bare `python`，因为 Windows Store 的 python 空壳会静默退出。`$PYTHON` 已在 `~/.claude/settings.json` 的 env 块中指向真实 CPython。
 
 **参数说明**：
 - 第1个参数：论文ID（arXiv ID）或本地PDF路径
@@ -104,7 +106,7 @@ python "scripts/extract_images.py" \
 
 # 输出格式
 
-## 图片索引文件（index.md）
+## 图片索引文件（index.txt — 故意用 .txt 而非 .md，避免污染 Obsidian 图谱）
 
 ```markdown
 # 图片索引
@@ -152,7 +154,7 @@ images/question_synthesis_pipeline_page1.png (pdf-figure)
 
 - 论文标题
 - 图片目录：`20_Research/Papers/领域/论文标题/images/`
-- 图片索引：`20_Research/Papers/领域/论文标题/images/index.md`
+- 图片索引：`20_Research/Papers/领域/论文标题/images/index.txt`
 - 核心图片：`images/final_results_combined_page1.png`等（前3-5张）
 - 图片来源标识（arxiv-source、pdf-figure、pdf-extraction）
 

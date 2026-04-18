@@ -3,6 +3,10 @@ name: start-my-day
 description: 论文阅读工作流启动 - 生成今日论文推荐笔记 / Paper reading workflow starter - Generate daily paper recommendations
 ---
 
+# Python Interpreter
+
+All scripts in this skill are invoked as `"$PYTHON" scripts/...` (not bare `python`). The `$PYTHON` env var is set in `~/.claude/settings.json` to the real CPython install, because on this Windows machine bare `python` resolves to the Microsoft Store stub that exits silently. Do not replace `"$PYTHON"` with `python`.
+
 # Language Setting / 语言设置
 
 This skill supports both Chinese and English reports. The language is determined by the `language` field in your config file:
@@ -95,12 +99,12 @@ Then use this language setting throughout the workflow:
 # 使用 Python 脚本搜索、解析和筛选 arXiv 论文
 # 首先切换到 skill 目录，然后执行脚本
 cd "$SKILL_DIR"
-python scripts/search_arxiv.py \
+"$PYTHON" scripts/search_arxiv.py \
   --config "$OBSIDIAN_VAULT_PATH/99_System/Config/research_interests.yaml" \
   --output arxiv_filtered.json \
   --max-results 200 \
   --top-n 10 \
-  --categories "cs.AI,cs.LG,cs.CL,cs.CV,cs.MM,cs.MA,cs.RO"
+  --categories "cs.RO,cs.LG,cs.AI,cs.CV,cs.SY,eess.SY"
 ```
 
 **脚本功能**：
@@ -197,14 +201,34 @@ cat arxiv_filtered.json
 
 ### 4.2 创建推荐笔记文件
 
-1. **创建推荐笔记文件**
-   - 文件名（根据语言设置）：
+1. **创建推荐笔记文件（追加模式，不覆盖）**
+   - 基础文件名（根据语言设置）：
      - 中文（`language: "zh"`）：`10_Daily/YYYY-MM-DD论文推荐.md`
      - 英文（`language: "en"`）：`10_Daily/YYYY-MM-DD-paper-recommendations.md`
    - 使用变量：`10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md`（其中 `NOTE_SUFFIX` 在语言检测阶段已设置）
+   - **冲突处理（重要）**：同一天多次运行时，不覆盖已有笔记，改用 `_vN` 递增后缀
+     ```bash
+     BASE="$OBSIDIAN_VAULT_PATH/10_Daily/YYYY-MM-DD${NOTE_SUFFIX}"
+     if [ ! -e "${BASE}.md" ]; then
+         NOTE_PATH="${BASE}.md"
+     else
+         N=2
+         while [ -e "${BASE}_v${N}.md" ]; do
+             N=$((N+1))
+         done
+         NOTE_PATH="${BASE}_v${N}.md"
+     fi
+     ```
+     - 第一次运行：`2026-04-17论文推荐.md`
+     - 第二次运行：`2026-04-17论文推荐_v2.md`
+     - 第三次运行：`2026-04-17论文推荐_v3.md`
+   - **在笔记开头添加一行提示**（便于日后识别是当天第几次运行）：
+     - 中文：`> 本次运行：第 N 次 / 生成时间：YYYY-MM-DD HH:MM`
+     - English：`> Run #N / Generated at: YYYY-MM-DD HH:MM`
    - 必须包含属性：
      - `keywords`: 当天推荐论文的关键词（逗号分隔，从论文标题和摘要中提取）
      - `tags`: ["llm-generated", "daily-paper-recommend"]
+     - `run`: N （第几次运行，整数）
 
 2. **检查论文是否值得详细写**
    - **很值得读的论文**：推荐评分 >= 7.5 或特别推荐的论文
@@ -326,7 +350,41 @@ Today's {paper_count} recommended papers focus on **{direction1}**, **{direction
 - **机构信息**：从论文 TeX 源码的 `\author` 或 `\affiliation` 字段提取；若 arXiv API 未提供，从下载的源码包读取
 - **不要使用 `---` 作为"无数据"占位符**：使用 `--` 代替（三个短横线会被 Obsidian 解析为分隔线）
 
-#### 4.2.3 前三篇论文插入图片和调用详细分析
+#### 4.2.2-lite `--list-only` 模式的精简格式
+
+**仅在 `--list-only` 模式下使用**。全部 `TOP_N` 篇论文（默认 50，可由 `--list-top-n` 覆盖）按评分从高到低排列，使用极简格式（一篇论文约 4-6 行）：
+
+**English (`language: "en"`)**:
+```markdown
+### {N}. [[note_filename|Paper Title]] — Score: {score}
+- **Authors**: [first 3 authors] et al.
+- **Categories**: [cat1, cat2]  |  **Published**: YYYY-MM-DD  |  **Links**: [arXiv](url) | [PDF](url)
+- **TL;DR**: [one sentence summarizing the core contribution]
+
+```
+
+**Chinese (`language: "zh"`)**:
+```markdown
+### {N}. [[note_filename|论文标题]] — 评分：{score}
+- **作者**：[前3位作者] 等
+- **分类**：[cat1, cat2]  |  **发布**：YYYY-MM-DD  |  **链接**：[arXiv](url) | [PDF](url)
+- **一句话**：[一句话概括核心贡献]
+
+```
+
+**规则**：
+- **标题必须是 wikilink**：使用 JSON 的 `note_filename` 字段作为链接目标，显示文本为论文标题
+  - 已有笔记 → 实链（Obsidian 图谱蓝色节点）
+  - 未生成笔记 → 未解析节点（Obsidian 图谱灰色虚线节点），保证每日推荐笔记能在原生图谱中连上所有推荐论文
+- arxiv/PDF 外部 URL 放在 **链接** 字段（Obsidian 不追踪外部 URL，但保留便于点击跳转）
+- 不写 Core Contributions、不写 Key Results、不写 Affiliation
+- 不插入任何图片
+- 仍要生成"今日概览"部分（基于全部 `TOP_N` 篇的统计）
+- 仍要执行步骤 7 的关键词自动链接
+
+#### 4.2.3 前三篇论文插入图片和调用详细分析（完整模式专属）
+
+> **注意**：`--list-only` 模式下跳过本节，直接按 4.2.2-lite 格式处理全部 50 篇。
 
 对于前3篇论文（评分最高的3篇）：
 
@@ -417,7 +475,7 @@ Today's {paper_count} recommended papers focus on **{direction1}**, **{direction
 ```bash
 # 步骤1：扫描现有笔记
 cd "$SKILL_DIR"
-python scripts/scan_existing_notes.py \
+"$PYTHON" scripts/scan_existing_notes.py \
   --vault "$OBSIDIAN_VAULT_PATH" \
   --output existing_notes_index.json
 
@@ -425,7 +483,7 @@ python scripts/scan_existing_notes.py \
 # ... 使用 search_arxiv.py 搜索论文 ...
 
 # 步骤3：链接关键词（新增步骤）
-python scripts/link_keywords.py \
+"$PYTHON" scripts/link_keywords.py \
   --index existing_notes_index.json \
   --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
   --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"
@@ -490,10 +548,39 @@ python scripts/link_keywords.py \
 
 当用户输入 "start my day" 时，按以下步骤执行：
 
-**日期参数支持**：
-- 无参数：生成当天的论文推荐笔记
-- 有参数（YYYY-MM-DD）：生成指定日期的论文推荐笔记
+**参数支持**：
+- 无参数：生成当天的论文推荐笔记（完整流程，前3篇深度分析）
+- 日期参数（YYYY-MM-DD）：生成指定日期的论文推荐笔记
   - 例如：`/start-my-day 2026-02-27`
+- `--list-only` 标志：**轻量模式**，只输出评分清单，跳过图片提取和深度分析
+  - 例如：`/start-my-day --list-only`
+  - 例如：`/start-my-day 2026-02-27 --list-only`
+  - **用途**：快速浏览候选论文，由用户自己决定读哪些；大幅节省 token
+  - **差异**：
+    - `top-n` 从 10 改为 `--list-top-n` 指定的值（默认 50）
+    - 所有论文使用统一基本格式（不含"核心贡献/关键结果"大段展开，只保留 One-line Summary）
+    - **跳过步骤6**（不调用 `extract-paper-images` 和 `paper-analyze`）
+    - **执行步骤5.5**：批量登记图谱节点（`analyzed: false`），保证图谱完整
+    - **执行步骤5.6**：批量生成占位笔记（ADAPT 风格骨架，`status: placeholder`），用户自己填内容；文件已存在则跳过
+    - 仍生成"今日概览"和关键词自动链接
+- **时间窗口与 S2 配额覆盖参数**（可选，任意顺序，可与上面参数组合）：
+  - `--arxiv-days N`：arXiv 近期窗口天数。示例：`/start-my-day --arxiv-days 60`
+  - `--s2-days M`：S2 历史窗口总天数。示例：`/start-my-day --s2-days 730`
+  - `--s2-min-quota K`：top-N 中为 S2 来源保留的最小席位。示例：`/start-my-day --s2-min-quota 15`
+  - `--list-top-n L`：**仅 `--list-only` 模式生效**，覆盖最终推荐论文数量。示例：`/start-my-day --list-only --list-top-n 80`
+  - **默认值**（未传时使用）：`--arxiv-days 30`、`--s2-days 365`、`--s2-min-quota 10`、`--list-top-n 50`
+  - **组合示例**：
+    - `/start-my-day --list-only --arxiv-days 60 --s2-min-quota 15`
+    - `/start-my-day --list-only --list-top-n 80 --arxiv-days 90`
+    - `/start-my-day 2026-04-18 --arxiv-days 90 --s2-days 730`
+  - **语义**：这些参数不改变模式（完整 / list-only），只改变搜索窗口、来源配比或推荐数量，最终透传给 `scripts/search_arxiv.py` 的同名参数
+
+**参数解析规则**（Claude 执行时遵循）：
+1. 先扫描用户原始输入，提取以 `--` 开头的标志（`--list-only`、`--arxiv-days`、`--s2-days`、`--s2-min-quota`、`--list-top-n`）
+2. 剩余的非标志 token 若匹配 `YYYY-MM-DD` 则作为目标日期
+3. 未出现的标志一律使用上面列出的默认值
+4. 将窗口/配额参数透传到步骤 3 的 `search_arxiv.py` 调用中
+5. `--list-top-n` 仅在 `--list-only` 模式下生效：用它覆盖步骤 3 中的 `TOP_N`，并按 `MAX_RESULTS = max(400, TOP_N * 8)` 同步放大候选池（保证去重后仍够数）
 
 ## 自动执行流程
 
@@ -505,7 +592,7 @@ python scripts/link_keywords.py \
    ```bash
    # 扫描 vault 中现有的论文笔记
    cd "$SKILL_DIR"
-   python scripts/scan_existing_notes.py \
+   "$PYTHON" scripts/scan_existing_notes.py \
      --vault "$OBSIDIAN_VAULT_PATH" \
      --output existing_notes_index.json
    ```
@@ -518,15 +605,36 @@ python scripts/link_keywords.py \
    # 使用 Python 脚本搜索、解析和筛选 arXiv 论文
    # 首先切换到 skill 目录，然后执行脚本
    # 如果有目标日期参数（如 2026-02-21），传递给 --target-date
+   # --list-only 模式下 top-n 改为 50，并可适当增加 max-results
    cd "$SKILL_DIR"
-   python scripts/search_arxiv.py \
+   TOP_N=10           # 默认完整模式
+   MAX_RESULTS=200
+   # 如果是 --list-only 模式：
+   #   TOP_N=${LIST_TOP_N:-50}     # 用户可通过 --list-top-n 覆盖，默认 50
+   #   MAX_RESULTS=$(( TOP_N * 8 > 400 ? TOP_N * 8 : 400 ))  # 候选池随 TOP_N 同步放大
+
+   # 时间窗口与 S2 配额参数：用户没传就用下面这组默认值
+   ARXIV_DAYS=30       # 可被用户 --arxiv-days 覆盖
+   S2_DAYS=365         # 可被用户 --s2-days 覆盖
+   S2_MIN_QUOTA=10     # 可被用户 --s2-min-quota 覆盖
+
+   "$PYTHON" scripts/search_arxiv.py \
      --config "$OBSIDIAN_VAULT_PATH/99_System/Config/research_interests.yaml" \
      --output arxiv_filtered.json \
-     --max-results 200 \
-     --top-n 10 \
-     --categories "cs.AI,cs.LG,cs.CL,cs.CV,cs.MM,cs.MA,cs.RO" \
+     --max-results $MAX_RESULTS \
+     --top-n $TOP_N \
+     --categories "cs.RO,cs.LG,cs.AI,cs.CV,cs.SY,eess.SY" \
+     --arxiv-days $ARXIV_DAYS \
+     --s2-days $S2_DAYS \
+     --s2-min-quota $S2_MIN_QUOTA \
      --target-date "{目标日期}"  # 如果用户指定了日期，替换为实际日期
    ```
+
+   **时间窗口与配额参数**：
+   - `--arxiv-days N`：arXiv 近期窗口天数，窗口 `[target_date - N, target_date]`（默认 30）
+   - `--s2-days M`：S2 历史窗口总天数，窗口 `[target_date - M, target_date - (arxiv_days + 1)]`，自动与 arXiv 窗口互斥（默认 365）
+   - `--s2-min-quota K`：在 top-N 中为 S2 来源保留的最低席位数，不足则挤掉评分最低的 arXiv 篇目换入（默认 10）
+   - **用户覆盖方式**：若用户在 `/start-my-day` 调用中传入同名标志，Claude 必须将用户值替换掉上面的默认值再调脚本；未传则保持默认
 
 4. **读取筛选结果**
    - 从 `arxiv_filtered.json` 中读取筛选结果
@@ -535,12 +643,20 @@ python scripts/link_keywords.py \
 
 5. **生成推荐笔记（包含关键词链接）**
    - 创建 `10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md`（使用目标日期，`NOTE_SUFFIX` 依语言设置）
+   - **同日重复运行：使用追加模式**，文件已存在则自动加 `_v2`、`_v3` 后缀（见 4.2 第1条）；**不覆盖** 已有笔记
    - **按评分排序**：所有论文按推荐评分从高到低排列
-   - **前3篇特殊处理**：
-     - 论文名称用 wikilink 格式：`[[论文名字]]`
-     - 在"一句话总结"后插入实际提取的第一张图片
-     - 在"详细报告"字段显示 wikilink 关联
-   - **其他论文**：只写基本信息，不插入图片
+   - **完整模式**（默认）：
+     - **前3篇特殊处理**：
+       - 论文名称用 wikilink 格式：`[[论文名字]]`
+       - 在"一句话总结"后插入实际提取的第一张图片
+       - 在"详细报告"字段显示 wikilink 关联
+     - **第 4–10 篇**：步骤 5.6 自动生成 ADAPT 风格占位笔记骨架（status: placeholder），用户自己填补
+     - **其他论文**：只写基本信息，不插入图片
+   - **`--list-only` 模式**：
+     - 全部 `TOP_N` 篇论文（默认 50，可由 `--list-top-n` 覆盖）使用统一精简格式：标题 + 作者 + 链接 + 评分 + 一句话总结
+     - **不**插入图片，**不**生成详细报告，**不**调用 `paper-analyze`
+     - 仍检查是否已有笔记，已有则在"笔记"字段给出 wikilink
+     - 步骤 5.6 自动为全部 `TOP_N` 篇生成占位笔记骨架（已存在则跳过）
    - **关键词自动链接**（重要！）：
      - 在生成笔记后，扫描文本中的关键词
      - 使用 `existing_notes_index.json` 进行匹配
@@ -548,7 +664,66 @@ python scripts/link_keywords.py \
      - 保留已有 wikilink 不被修改
      - 不替换代码块中的内容
 
-6. **对前三篇论文执行深度分析**
+5.5. **批量登记图谱节点**（`--list-only` 模式**必须**执行；完整模式由步骤 6 的 `paper-analyze` 自己登记）
+
+   > **目的**：list-only 模式不做深度分析，但图谱节点一定要登记上，方便之后检索和可视化。
+
+   ```bash
+   # 调用 paper-analyze 的 update_graph.py 批量模式
+   # --no-analyzed 表示这些节点只是候选，未经深度分析
+   # 已存在且 analyzed=True 的节点不会被覆盖（老节点保留质量分）
+   "$PYTHON" "$HOME/.claude/skills/paper-analyze/scripts/update_graph.py" \
+     --batch-json "$SKILL_DIR/arxiv_filtered.json" \
+     --no-analyzed \
+     --language "$LANGUAGE"
+   ```
+
+   **行为**：
+   - 读取 `arxiv_filtered.json` 的 `top_papers[]`
+   - 对每篇论文在 `20_Research/PaperGraph/graph_data.json` 中 upsert 一个节点：
+     - `id` = arxiv_id
+     - `title`, `year`, `domain` (来自 `matched_domain`)
+     - `quality_score` = 推荐评分
+     - `analyzed: false`（候选节点标记）
+   - 遇到已存在且 `analyzed: true` 的节点：**保留原节点**，不降级；只有当新分数更高时才抬高 `quality_score`
+   - 不创建边（边由 `paper-analyze` 生成相关论文时创建）
+   - 输出格式：`批量登记: 新增 X / 更新 Y / 保留已分析 Z`
+
+5.6. **批量生成占位笔记**（`--list-only` 模式**必须**执行；完整模式对 4–10 名也执行）
+
+   > **目的**：为用户自己准备 ADAPT 风格的笔记骨架，他只需要往里填内容。文件已存在则跳过，绝不覆盖用户已写的笔记。
+
+   ```bash
+   # list-only 模式：为全部 TOP_N 篇生成占位（--start 1 --end 0 即全部）
+   # TOP_N 由 --list-top-n 控制，默认 50
+   "$PYTHON" "$SKILL_DIR/scripts/generate_placeholders.py" \
+     --input "$SKILL_DIR/arxiv_filtered.json" \
+     --vault "$OBSIDIAN_VAULT_PATH"
+
+   # 完整模式：前3篇由 paper-analyze 处理，只为 4–10 名生成占位
+   "$PYTHON" "$SKILL_DIR/scripts/generate_placeholders.py" \
+     --input "$SKILL_DIR/arxiv_filtered.json" \
+     --vault "$OBSIDIAN_VAULT_PATH" \
+     --start 4 --end 10
+   ```
+
+   **行为**：
+   - 从 `arxiv_filtered.json` 的 `top_papers[]` 读取论文，按 `[start, end]` 1-based 切片
+   - 每篇论文根据 `matched_domain` 映射到领域文件夹（Embodied_AI / Foundation_Models / Loco-Manipulation / Robot_Manipulation / Other），未命中的映射会回退到 sanitized `matched_domain` 或 `Other`
+   - 文件名来自 JSON 的 `note_filename` 字段（与推荐列表 wikilink 相同）
+   - frontmatter 预填 `paper_id`、`title`、`authors`、`domain`、`matched_domain`、`quality_score`、`status: placeholder`
+   - 正文预填英文摘要（`summary`），其余章节（中文翻译、方法、实验、评价等）留 `[待补充]` 占位
+   - **已存在的笔记文件不会被覆盖**（保护用户已填写的内容）
+   - 输出格式：`统计: 生成 X / 跳过已存在 Y / 跳过无效 Z`
+
+   **参数**：
+   - `--start N` / `--end M`：1-based 闭区间，`end=0` 表示全部
+   - `--dry-run`：只打印会创建哪些文件，不写盘（调试用）
+
+6. **对前三篇论文执行深度分析**（仅完整模式；`--list-only` 模式跳过此步骤）
+
+   > **`--list-only` 模式**：直接跳到步骤 7（关键词自动链接），不执行本步骤。图谱节点已在步骤 5.5 登记。
+
    ```bash
    # 对每篇前三论文执行以下操作
 
@@ -622,7 +797,7 @@ python scripts/link_keywords.py \
 **使用方法**：
 ```bash
 cd "$SKILL_DIR"
-python scripts/scan_existing_notes.py \
+"$PYTHON" scripts/scan_existing_notes.py \
   --vault "$OBSIDIAN_VAULT_PATH" \
   --output existing_notes_index.json
 ```
@@ -668,7 +843,7 @@ python scripts/scan_existing_notes.py \
 ```bash
 # 首先切换到 skill 目录，然后执行脚本
 cd "$SKILL_DIR"
-python scripts/link_keywords.py \
+"$PYTHON" scripts/link_keywords.py \
   --index existing_notes_index.json \
   --input "input.txt" \
   --output "output.txt"
@@ -687,7 +862,7 @@ python scripts/link_keywords.py \
 ```bash
 # 步骤1：扫描现有笔记
 cd "$SKILL_DIR"
-python scripts/scan_existing_notes.py \
+"$PYTHON" scripts/scan_existing_notes.py \
   --vault "$OBSIDIAN_VAULT_PATH" \
   --output existing_notes_index.json
 
@@ -695,7 +870,7 @@ python scripts/scan_existing_notes.py \
 # ... 使用 search_arxiv.py 搜索论文 ...
 
 # 步骤3：链接关键词（新增步骤）
-python scripts/link_keywords.py \
+"$PYTHON" scripts/link_keywords.py \
   --index existing_notes_index.json \
   --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
   --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"
@@ -732,7 +907,7 @@ python scripts/link_keywords.py \
 ```bash
 # 步骤1：扫描现有笔记
 cd "$SKILL_DIR"
-python scripts/scan_existing_notes.py \
+"$PYTHON" scripts/scan_existing_notes.py \
   --vault "$OBSIDIAN_VAULT_PATH" \
   --output existing_notes_index.json
 
@@ -740,7 +915,7 @@ python scripts/scan_existing_notes.py \
 # ... 使用 search_arxiv.py 搜索论文 ...
 
 # 步骤3：链接关键词（新增步骤）
-python scripts/link_keywords.py \
+"$PYTHON" scripts/link_keywords.py \
   --index existing_notes_index.json \
   --input "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}.md" \
   --output "10_Daily/YYYY-MM-DD${NOTE_SUFFIX}_linked.md"

@@ -7,12 +7,30 @@ Obsidian笔记生成脚本 - 正确处理frontmatter格式
 
 import sys
 import os
+import re
 import argparse
 import logging
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# 复用同目录 update_graph.py 的短名算法
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from update_graph import make_short_title  # noqa: E402
+
+
+def read_frontmatter_paper_id(path: str) -> str:
+    """读取已有 .md 的 frontmatter paper_id（用于盘上冲突判定）。"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            head = f.read(3000)
+    except (IOError, OSError):
+        return ""
+    m = re.search(r'^paper_id:\s*["\']?([^"\'\n]+?)["\']?\s*$', head, re.M)
+    return m.group(1).strip() if m else ""
 
 
 def get_vault_path(cli_vault=None):
@@ -385,9 +403,9 @@ def main():
     papers_dir = os.path.join(vault_root, "20_Research", "Papers")
     date = datetime.now().strftime("%Y-%m-%d")
 
-    # 清理文件名中的非法字符
-    import re
-    paper_title_safe = re.sub(r'[ /\\:*?"<>|]+', '_', args.title).strip('_')
+    # 文件名：短名优先（make_short_title 取冒号前部分），再做非法字符替换
+    short = make_short_title(args.title)
+    paper_title_safe = re.sub(r'[ /\\:*?"<>|]+', '_', short).strip('_')
 
     # 校验域名，防止路径穿越
     domain = args.domain.strip('/\\').replace('..', '')
@@ -397,7 +415,17 @@ def main():
     note_dir = os.path.join(papers_dir, domain)
     os.makedirs(note_dir, exist_ok=True)
 
+    # 盘上冲突：若目标已存在且 frontmatter paper_id 与当前不同，追加 _<arxiv_id>
     note_path = os.path.join(note_dir, f"{paper_title_safe}.md")
+    if os.path.exists(note_path):
+        existing_pid = read_frontmatter_paper_id(note_path)
+        current_pid = str(args.paper_id or '').strip()
+        norm = lambda s: re.sub(r'^arXiv:', '', s, flags=re.I).strip()
+        if existing_pid and current_pid and norm(existing_pid) != norm(current_pid):
+            aid = re.sub(r'[ /\\:*?"<>|]+', '_', norm(current_pid)).strip('_')
+            if aid:
+                paper_title_safe = f"{paper_title_safe}_{aid}"
+                note_path = os.path.join(note_dir, f"{paper_title_safe}.md")
     content = generate_note_content(args.paper_id, args.title, args.authors, domain, date, args.language)
 
     try:

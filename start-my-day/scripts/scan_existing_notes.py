@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import List, Dict, Set, Tuple
 import yaml
 
+# Windows 默认 cp936 控制台会把脚本的 UTF-8 日志显示为乱码，统一强制 UTF-8
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, ValueError):
+    pass
+
 from common_words import COMMON_WORDS
 
 logger = logging.getLogger(__name__)
