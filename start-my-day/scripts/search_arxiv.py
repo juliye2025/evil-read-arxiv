@@ -98,7 +98,7 @@ WEIGHTS_HOT = {
 }
 
 # Semantic Scholar 速率限制等待时间（秒）
-S2_RATE_LIMIT_WAIT = 30
+S2_RATE_LIMIT_WAIT = 10
 S2_CATEGORY_REQUEST_INTERVAL = 3
 
 # Semantic Scholar API Key（可选，从配置文件读取）
@@ -142,32 +142,27 @@ def load_research_config(config_path: str) -> Dict:
         }
 
 
-def calculate_date_windows(target_date: Optional[datetime] = None) -> Tuple[datetime, datetime, datetime, datetime]:
+def calculate_date_windows(target_date: Optional[datetime] = None, days: int = 30) -> Tuple[datetime, datetime, datetime, datetime]:
     """
-    计算两个时间窗口：最近30天和过去一年（除去最近30天）
-    
+    计算两个时间窗口：最近N天和过去一年（除去最近N天）
+
     Args:
         target_date: 基准日期，如果为 None 则使用当前日期
-        
+        days: 最近搜索窗口的天数（默认30）
+
     Returns:
-        (window_30d_start, window_30d_end, window_1y_start, window_1y_end)
-        - window_30d_start: 30天窗口开始日期
-        - window_30d_end: 30天窗口结束日期（即 target_date）
-        - window_1y_start: 一年窗口开始日期
-        - window_1y_end: 一年窗口结束日期（即 31天前）
+        (window_recent_start, window_recent_end, window_1y_start, window_1y_end)
     """
     if target_date is None:
         target_date = datetime.now()
-    
-    # 最近30天窗口: [target_date - 30 days, target_date]
-    window_30d_start = target_date - timedelta(days=30)
-    window_30d_end = target_date
-    
-    # 过去一年窗口（除去最近30天）: [target_date - 365 days, target_date - 31 days]
+
+    window_recent_start = target_date - timedelta(days=days)
+    window_recent_end = target_date
+
     window_1y_start = target_date - timedelta(days=365)
-    window_1y_end = target_date - timedelta(days=31)
-    
-    return window_30d_start, window_30d_end, window_1y_start, window_1y_end
+    window_1y_end = target_date - timedelta(days=days + 1)
+
+    return window_recent_start, window_recent_end, window_1y_start, window_1y_end
 
 
 def search_arxiv_by_date_range(
@@ -231,16 +226,88 @@ def search_arxiv_by_date_range(
     return []
 
 
+def search_arxiv_by_keywords(
+    keywords: List[str],
+    start_date: datetime,
+    end_date: datetime,
+    max_results: int = 100,
+    max_retries: int = 3
+) -> List[Dict]:
+    """
+    使用关键词直接搜索 arXiv 论文（不限分类）
+
+    Args:
+        keywords: 搜索关键词列表
+        start_date: 开始日期
+        end_date: 结束日期
+        max_results: 最大结果数
+        max_retries: 最大重试次数
+
+    Returns:
+        论文列表
+    """
+    # 构建关键词查询 (在 title 和 abstract 中搜索)
+    keyword_parts = []
+    for kw in keywords:
+        kw = kw.strip()
+        if not kw:
+            continue
+        # 如果关键词包含空格，用引号包裹进行精确匹配
+        if ' ' in kw:
+            keyword_parts.append(f'ti:"{kw}"+OR+abs:"{kw}"')
+        else:
+            keyword_parts.append(f"ti:{kw}+OR+abs:{kw}")
+
+    if not keyword_parts:
+        return []
+
+    keyword_query = "+OR+".join([f"({p})" for p in keyword_parts])
+
+    # 构建日期范围查询
+    date_query = f"submittedDate:[{start_date.strftime('%Y%m%d')}0000+TO+{end_date.strftime('%Y%m%d')}2359]"
+
+    full_query = f"({keyword_query})+AND+{date_query}"
+
+    url = (
+        f"https://export.arxiv.org/api/query?"
+        f"search_query={urllib.parse.quote(full_query, safe='+:')}&"
+        f"max_results={max_results}&"
+        f"sortBy=relevance&"
+        f"sortOrder=descending"
+    )
+
+    logger.info("[arXiv] Keyword search: %s", keywords)
+    logger.debug("[arXiv] URL: %s...", url[:150])
+
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                xml_content = response.read().decode('utf-8')
+                papers = parse_arxiv_xml(xml_content)
+                logger.info("[arXiv] Keyword search found %d papers", len(papers))
+                return papers
+        except Exception as e:
+            logger.warning("[arXiv] Keyword search error (attempt %d/%d): %s", attempt + 1, max_retries, e)
+            if attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2
+                time.sleep(wait_time)
+            else:
+                logger.error("[arXiv] Keyword search failed after %d attempts", max_retries)
+                return []
+
+    return []
+
+
 def search_semantic_scholar_hot_papers(
     query: str,
     start_date: datetime,
     end_date: datetime,
     top_k: int = 20,
-    max_retries: int = 3
+    max_retries: int = 2
 ) -> List[Dict]:
     """
     使用 Semantic Scholar API 搜索指定时间范围内的高影响力论文
-    
+
     Args:
         query: 搜索关键词
         start_date: 开始日期
@@ -410,14 +477,18 @@ def search_hot_papers_from_categories(
             unique_queries.append(q)
 
     for query in unique_queries:
-        
-        papers = search_semantic_scholar_hot_papers(
-            query=query,
-            start_date=start_date,
-            end_date=end_date,
-            top_k=top_k_per_category
-        )
-        
+
+        try:
+            papers = search_semantic_scholar_hot_papers(
+                query=query,
+                start_date=start_date,
+                end_date=end_date,
+                top_k=top_k_per_category
+            )
+        except Exception as e:
+            logger.warning("[S2] Query '%s' failed: %s — skipping", query, e)
+            papers = []
+
         # 去重（基于 arXiv ID）
         for p in papers:
             # 安全地从 externalIds 字典中提取 ArXiv 编号
@@ -548,61 +619,92 @@ def parse_arxiv_xml(xml_content: str) -> List[Dict]:
 def calculate_relevance_score(
     paper: Dict,
     domains: Dict,
-    excluded_keywords: List[str]
+    excluded_keywords: List[str],
+    focus_keywords: List[str] = None
 ) -> Tuple[float, Optional[str], List[str]]:
     """
     计算论文与研究兴趣的相关性评分
-    
+
+    当有 focus_keywords 时，以 focus 匹配为主导（高权重），
+    已有兴趣域仅作为参考加分。
+
     Args:
         paper: 论文信息
         domains: 研究领域配置
         excluded_keywords: 排除关键词
-        
+        focus_keywords: 用户今日关注的关键词
+
     Returns:
         (相关性评分, 匹配的领域, 匹配的关键词列表)
     """
+    focus_keywords = focus_keywords or []
     title = paper.get('title', '').lower()
     summary = paper.get('summary', '').lower() if 'summary' in paper else paper.get('abstract', '').lower()
     categories = set(paper.get('categories', []))
-    
+
     # 检查排除关键词
     for keyword in excluded_keywords:
         if keyword.lower() in title or keyword.lower() in summary:
             return 0, None, []
-    
-    max_score = 0
+
+    # ---- Focus 关键词独立评分（主导） ----
+    focus_score = 0.0
+    focus_matched = []
+    if focus_keywords:
+        for fk in focus_keywords:
+            fk_lower = fk.lower().strip()
+            if not fk_lower:
+                continue
+            if fk_lower in title:
+                focus_score += 2.0  # 标题匹配：高分
+                focus_matched.append(fk)
+            elif fk_lower in summary:
+                focus_score += 1.0  # 摘要匹配：中分
+                focus_matched.append(fk)
+
+    # ---- 已有兴趣域评分（参考） ----
+    max_domain_score = 0
     best_domain = None
-    matched_keywords = []
-    
-    # 遍历所有领域
+    domain_matched_keywords = []
+
     for domain_name, domain_config in domains.items():
         score = 0
-        domain_matched_keywords = []
-        
-        # 关键词匹配
+        dm_keywords = []
+
         keywords = domain_config.get('keywords', [])
         for keyword in keywords:
             keyword_lower = keyword.lower()
             if keyword_lower in title:
                 score += RELEVANCE_TITLE_KEYWORD_BOOST
-                domain_matched_keywords.append(keyword)
+                dm_keywords.append(keyword)
             elif keyword_lower in summary:
                 score += RELEVANCE_SUMMARY_KEYWORD_BOOST
-                domain_matched_keywords.append(keyword)
-        
-        # 类别匹配
+                dm_keywords.append(keyword)
+
         domain_categories = domain_config.get('arxiv_categories', [])
         for cat in domain_categories:
             if cat in categories:
                 score += RELEVANCE_CATEGORY_MATCH_BOOST
-                domain_matched_keywords.append(cat)
-        
-        if score > max_score:
-            max_score = score
+                dm_keywords.append(cat)
+
+        if score > max_domain_score:
+            max_domain_score = score
             best_domain = domain_name
-            matched_keywords = domain_matched_keywords
-    
-    return max_score, best_domain, matched_keywords
+            domain_matched_keywords = dm_keywords
+
+    # ---- 合并评分 ----
+    if focus_keywords:
+        # Focus 模式：focus 为主，域匹配为辅（0.3 权重）
+        total_score = focus_score + max_domain_score * 0.3
+        all_matched = focus_matched + [k for k in domain_matched_keywords if k not in focus_matched]
+        matched_domain = best_domain if best_domain else ("搜索结果" if focus_matched else None)
+    else:
+        # 普通模式：纯域评分
+        total_score = max_domain_score
+        all_matched = domain_matched_keywords
+        matched_domain = best_domain
+
+    return total_score, matched_domain, all_matched
 
 
 def calculate_recency_score(published_date: Optional[datetime]) -> float:
@@ -729,7 +831,8 @@ def filter_and_score_papers(
     papers: List[Dict],
     config: Dict,
     target_date: Optional[datetime] = None,
-    is_hot_paper_batch: bool = False
+    is_hot_paper_batch: bool = False,
+    focus_keywords: List[str] = None
 ) -> List[Dict]:
     """
     筛选和评分论文
@@ -751,7 +854,7 @@ def filter_and_score_papers(
     for paper in papers:
         # 计算相关性
         relevance, matched_domain, matched_keywords = calculate_relevance_score(
-            paper, domains, excluded_keywords
+            paper, domains, excluded_keywords, focus_keywords=focus_keywords or []
         )
 
         # 如果相关性为0，跳过
@@ -856,6 +959,10 @@ def main():
                         help='Comma-separated list of arXiv categories')
     parser.add_argument('--skip-hot-papers', action='store_true',
                         help='Skip searching hot papers from Semantic Scholar')
+    parser.add_argument('--focus', type=str, default='',
+                        help='User-specified focus keywords for today (comma-separated)')
+    parser.add_argument('--days', type=int, default=30,
+                        help='Number of days to search back (default 30)')
 
     args = parser.parse_args()
 
@@ -865,6 +972,10 @@ def main():
         datefmt='%H:%M:%S',
         stream=sys.stderr,
     )
+
+    focus_keywords = [k.strip() for k in args.focus.split(',') if k.strip()] if args.focus else []
+    if focus_keywords:
+        logger.info("Focus keywords: %s", focus_keywords)
 
     if not args.config:
         logger.error("未指定配置文件路径。请通过 --config 参数或 OBSIDIAN_VAULT_PATH 环境变量设置。")
@@ -886,9 +997,9 @@ def main():
         target_date = datetime.now()
         logger.info("Using current date: %s", target_date.strftime('%Y-%m-%d'))
 
-    window_30d_start, window_30d_end, window_1y_start, window_1y_end = calculate_date_windows(target_date)
+    window_30d_start, window_30d_end, window_1y_start, window_1y_end = calculate_date_windows(target_date, days=args.days)
     logger.info("Date windows:")
-    logger.info("  Recent 30 days: %s to %s", window_30d_start.date(), window_30d_end.date())
+    logger.info("  Recent %d days: %s to %s", args.days, window_30d_start.date(), window_30d_end.date())
     logger.info("  Past year (31-365 days): %s to %s", window_1y_start.date(), window_1y_end.date())
 
     # 解析分类
@@ -898,57 +1009,117 @@ def main():
     recent_papers = []
     hot_papers = []
 
-    # ========== 第一步：搜索最近30天的论文（arXiv）==========
-    logger.info("=" * 70)
-    logger.info("Step 1: Searching recent papers (last 30 days) from arXiv")
-    logger.info("=" * 70)
-    
-    recent_papers = search_arxiv_by_date_range(
-        categories=categories,
-        start_date=window_30d_start,
-        end_date=window_30d_end,
-        max_results=args.max_results
-    )
-    
-    if recent_papers:
-        scored_recent = filter_and_score_papers(
-            papers=recent_papers,
-            config=config,
-            target_date=target_date,
-            is_hot_paper_batch=False
-        )
-        logger.info("Scored %d recent papers", len(scored_recent))
-        all_scored_papers.extend(scored_recent)
-    else:
-        logger.warning("No recent papers found")
+    if focus_keywords:
+        # ========== Focus 模式：关键词搜索为主 ==========
+        logger.info("=" * 70)
+        logger.info("Step 1 (Focus): Keyword-based arXiv search for: %s", focus_keywords)
+        logger.info("=" * 70)
 
-    # ========== 第二步：搜索过去一年的高影响力论文（Semantic Scholar）==========
-    if not args.skip_hot_papers:
-        logger.info("=" * 70)
-        logger.info("Step 2: Searching hot papers (past year) from Semantic Scholar")
-        logger.info("=" * 70)
-        
-        hot_papers = search_hot_papers_from_categories(
-            categories=categories,
-            start_date=window_1y_start,
-            end_date=window_1y_end,
-            top_k_per_category=5,
-            config=config
+        focus_papers = search_arxiv_by_keywords(
+            keywords=focus_keywords,
+            start_date=window_30d_start,
+            end_date=window_30d_end,
+            max_results=args.max_results
         )
-        
-        if hot_papers:
-            scored_hot = filter_and_score_papers(
-                papers=hot_papers,
+
+        if focus_papers:
+            scored_focus = filter_and_score_papers(
+                papers=focus_papers,
                 config=config,
                 target_date=target_date,
-                is_hot_paper_batch=True
+                is_hot_paper_batch=False,
+                focus_keywords=focus_keywords
             )
-            logger.info("Scored %d hot papers", len(scored_hot))
-            all_scored_papers.extend(scored_hot)
+            logger.info("Scored %d focus keyword papers", len(scored_focus))
+            all_scored_papers.extend(scored_focus)
         else:
-            logger.warning("No hot papers found from Semantic Scholar")
+            logger.warning("No papers found for focus keywords")
+
+        # Semantic Scholar 也按 focus 搜索（补充高引用论文）
+        if not args.skip_hot_papers:
+            logger.info("=" * 70)
+            logger.info("Step 2 (Focus): Searching hot papers for focus keywords from Semantic Scholar")
+            logger.info("=" * 70)
+
+            focus_query = " ".join(focus_keywords)
+            try:
+                hot_papers = search_semantic_scholar_hot_papers(
+                    query=focus_query,
+                    start_date=window_1y_start,
+                    end_date=window_1y_end,
+                    top_k=20
+                )
+            except Exception as e:
+                logger.warning("Semantic Scholar focus search failed (non-fatal): %s", e)
+                hot_papers = []
+
+            if hot_papers:
+                scored_hot = filter_and_score_papers(
+                    papers=hot_papers,
+                    config=config,
+                    target_date=target_date,
+                    is_hot_paper_batch=True,
+                    focus_keywords=focus_keywords
+                )
+                logger.info("Scored %d hot papers for focus", len(scored_hot))
+                all_scored_papers.extend(scored_hot)
+
     else:
-        logger.info("Skipping hot paper search (disabled by user)")
+        # ========== 普通模式：按兴趣域搜索 ==========
+        logger.info("=" * 70)
+        logger.info("Step 1: Searching recent papers (last 30 days) from arXiv")
+        logger.info("=" * 70)
+
+        recent_papers = search_arxiv_by_date_range(
+            categories=categories,
+            start_date=window_30d_start,
+            end_date=window_30d_end,
+            max_results=args.max_results
+        )
+
+        if recent_papers:
+            scored_recent = filter_and_score_papers(
+                papers=recent_papers,
+                config=config,
+                target_date=target_date,
+                is_hot_paper_batch=False,
+            )
+            logger.info("Scored %d recent papers", len(scored_recent))
+            all_scored_papers.extend(scored_recent)
+        else:
+            logger.warning("No recent papers found")
+
+        # 搜索过去一年的高影响力论文（Semantic Scholar）
+        if not args.skip_hot_papers:
+            logger.info("=" * 70)
+            logger.info("Step 2: Searching hot papers (past year) from Semantic Scholar")
+            logger.info("=" * 70)
+
+            try:
+                hot_papers = search_hot_papers_from_categories(
+                    categories=categories,
+                    start_date=window_1y_start,
+                    end_date=window_1y_end,
+                    top_k_per_category=5,
+                    config=config
+                )
+            except Exception as e:
+                logger.warning("Semantic Scholar search failed (non-fatal): %s", e)
+                hot_papers = []
+
+            if hot_papers:
+                scored_hot = filter_and_score_papers(
+                    papers=hot_papers,
+                    config=config,
+                    target_date=target_date,
+                    is_hot_paper_batch=True,
+                )
+                logger.info("Scored %d hot papers", len(scored_hot))
+                all_scored_papers.extend(scored_hot)
+            else:
+                logger.warning("No hot papers found from Semantic Scholar")
+        else:
+            logger.info("Skipping hot paper search (disabled by user)")
 
     # ========== 第三步：合并结果并排序 ==========
     logger.info("=" * 70)
@@ -1010,17 +1181,21 @@ def main():
     }
 
     # 保存结果
-    with open(args.output, 'w', encoding='utf-8') as f:
-        json.dump(output, f, ensure_ascii=False, indent=2, default=str)
+    json_str = json.dumps(output, ensure_ascii=False, indent=2, default=str)
+    if args.output == '-' or args.output == '/dev/stdout':
+        sys.stdout.write(json_str)
+        sys.stdout.write('\n')
+    else:
+        with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(json_str)
+        logger.info("Results saved to: %s", args.output)
+        # 同时输出到 stdout
+        print(json_str)
 
-    logger.info("Results saved to: %s", args.output)
     logger.info("Top %d papers:", len(top_papers))
     for i, p in enumerate(top_papers, 1):
         hot_marker = " [HOT]" if p.get('is_hot_paper') else ""
         logger.info("  %d. %s... (Score: %s)%s", i, p.get('title', 'N/A')[:60], p['scores']['recommendation'], hot_marker)
-
-    # 同时输出到 stdout
-    print(json.dumps(output, ensure_ascii=False, indent=2, default=str))
 
     return 0
 

@@ -1,0 +1,137 @@
+language: zh
+vault_path: /home/woan/ObsidianVault
+papers_dir: 20_Research/Papers
+research_domains:
+  VLA模型:
+    keywords:
+      - vision language action
+      - VLA
+      - vision-language-action
+      - robotic manipulation
+      - robot learning
+      - embodied AI
+      - embodied agent
+      - action prediction
+      - robot policy
+      - visuomotor
+      - end-to-end robot
+      - language-conditioned policy
+      - RT-2
+      - OpenVLA
+      - Octo
+      - π0
+      - robotic foundation model
+      - manipulation policy
+      - grasping
+      - dexterous manipulation
+      - imitation learning
+      - behavior cloning
+      - robot transformer
+    arxiv_categories:
+      - cs.RO
+      - cs.CV
+      - cs.AI
+      - cs.LG
+      - cs.CL
+    priority: 5
+  世界模型:
+    keywords:
+      - world model
+      - world simulator
+      - video prediction
+      - video generation
+      - physical simulation
+      - dynamics model
+      - environment model
+      - predictive model
+      - neural simulator
+      - Sora
+      - Genie
+      - UniSim
+      - model-based reinforcement learning
+      - imagination
+      - dreamer
+      - latent dynamics
+      - physical reasoning
+      - physics simulation
+      - scene understanding
+      - 3D generation
+      - 4D generation
+      - video diffusion
+    arxiv_categories:
+      - cs.CV
+      - cs.AI
+      - cs.LG
+      - cs.RO
+      - cs.GR
+    priority: 5
+  强化学习:
+    keywords:
+      - reinforcement learning
+      - reward shaping
+      - policy optimization
+      - deep reinforcement learning
+      - RLHF
+      - PPO
+      - Q-learning
+      - actor-critic
+      - multi-agent reinforcement learning
+      - exploration exploitation
+      - reward function
+      - value function
+      - model-based RL
+      - offline reinforcement learning
+      - test-time reinforcement learning
+    arxiv_categories:
+      - cs.LG
+      - cs.AI
+      - stat.ML
+      - cs.RO
+      - cs.NE
+    priority: 5
+  灵巧手抓取:
+    keywords:
+      - dexterous manipulation
+      - dexterous grasping
+      - tactile sensing
+      - fingertip perception
+      - multi-finger hand
+      - robotic hand
+      - in-hand manipulation
+      - tactile simulation
+      - vision-tactile
+      - grasp planning
+      - contact-rich manipulation
+      - hand-object interaction
+      - robot dexterity
+      - manipulation policy
+      - reinforcement learning manipulation
+    arxiv_categories:
+      - cs.RO
+      - cs.CV
+      - cs.LG
+      - cs.AI
+    priority: 5
+  绳驱连续体机器人:
+    keywords:
+      - tendon driven continuum robot
+      - hyper-redundant manipulator
+      - cable driven continuum
+      - shape estimation continuum
+      - continuum robot kinematics
+      - tendon actuation
+      - soft continuum manipulator
+      - continuum robot control
+      - Magnus expansion robot
+      - reconfigurable continuum
+      - flexible robot arm
+      - continuum mechanics robotics
+      - wire driven robot
+    arxiv_categories:
+      - cs.RO
+      - eess.SY
+      - cs.SY
+    priority: 5
+excluded_keywords:
+  - workshop
+semantic_scholar_api_key: ''

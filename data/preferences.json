@@ -1,0 +1,71 @@
+{
+  "last_updated": "2026-04-24",
+  "keyword_weights": {
+    "large language model": 0.9,
+    "LLM": 0.9,
+    "fine-tuning": 0.9,
+    "PEFT": 0.9,
+    "adapter": 0.9,
+    "RAG": 0.9,
+    "reasoning": 0.9,
+    "chain-of-thought": 0.9,
+    "alignment": 0.9,
+    "MLLM": 0.9,
+    "multimodal": 0.9
+  },
+  "domain_weights": {
+    "大语言模型": 0.9,
+    "VLA模型": 1,
+    "世界模型": 1,
+    "强化学习": 1,
+    "灵巧手抓取": 1,
+    "绳驱连续体机器人": 1
+  },
+  "category_weights": {
+    "cs.CL": 0.9,
+    "cs.AI": 0.95,
+    "cs.LG": 0.95,
+    "cs.RO": 1,
+    "cs.CV": 1
+  },
+  "update_history": [
+    {
+      "date": "2026-04-24",
+      "summary": "The user rated both recent papers from the 大语言模型 (Large Language Model) domain as NEUTRAL, suggesting mild or indifferent interest in LLM-related topics such as PEFT, multimodal table reasoning, and continual learning. With only 2 neutral signals and no existing configured domain for LLMs, no significant priority changes are warranted at this time. Continued feedback will help clarify whether LLM papers should be actively filtered or a new domain configuration should be added.",
+      "changes": {
+        "keyword_weights": {
+          "large language model": 0.9,
+          "LLM": 0.9,
+          "fine-tuning": 0.9,
+          "PEFT": 0.9,
+          "adapter": 0.9,
+          "RAG": 0.9,
+          "reasoning": 0.9,
+          "chain-of-thought": 0.9,
+          "alignment": 0.9,
+          "MLLM": 0.9,
+          "multimodal": 0.9
+        },
+        "domain_weights": {
+          "大语言模型": 0.9,
+          "VLA模型": 1,
+          "世界模型": 1,
+          "强化学习": 1,
+          "灵巧手抓取": 1,
+          "绳驱连续体机器人": 1
+        },
+        "category_weights": {
+          "cs.CL": 0.9,
+          "cs.AI": 0.95,
+          "cs.LG": 0.95,
+          "cs.RO": 1,
+          "cs.CV": 1
+        },
+        "priority_changes": [],
+        "added_keywords": [],
+        "removed_keywords": [],
+        "summary": "The user rated both recent papers from the 大语言模型 (Large Language Model) domain as NEUTRAL, suggesting mild or indifferent interest in LLM-related topics such as PEFT, multimodal table reasoning, and continual learning. With only 2 neutral signals and no existing configured domain for LLMs, no significant priority changes are warranted at this time. Continued feedback will help clarify whether LLM papers should be actively filtered or a new domain configuration should be added."
+      }
+    }
+  ]
+}
