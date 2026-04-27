@@ -25,7 +25,7 @@ export async function GET(
 
     // Fetch paper abstract from arXiv API
     const arxivRes = await fetch(
-      `http://export.arxiv.org/api/query?id_list=${arxivId}`
+      `https://export.arxiv.org/api/query?id_list=${arxivId}`
     );
     const xml = await arxivRes.text();
 

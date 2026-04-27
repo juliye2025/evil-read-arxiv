@@ -297,24 +297,3 @@ ${focus}`,
 ${focus}`,
   },
 };
-
-export async function getLanguageFromSettings(): Promise<Language> {
-  try {
-    const { promises: fs } = await import("fs");
-    const path = await import("path");
-    const settingsPath = path.join(process.cwd(), "..", "data", "api_settings.json");
-    const raw = await fs.readFile(settingsPath, "utf-8");
-    const settings = JSON.parse(raw);
-    if (settings.language === "en" || settings.language === "zh") return settings.language;
-  } catch {}
-  try {
-    const { promises: fs } = await import("fs");
-    const path = await import("path");
-    const yaml = (await import("js-yaml")).default;
-    const configPath = path.join(process.cwd(), "..", "config.yaml");
-    const raw = await fs.readFile(configPath, "utf-8");
-    const config = yaml.load(raw) as Record<string, unknown>;
-    if (config.language === "en") return "en";
-  } catch {}
-  return "zh";
-}

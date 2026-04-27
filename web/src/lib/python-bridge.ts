@@ -87,6 +87,17 @@ export async function searchPapers(
   // Quote args that contain spaces
   const cmd = baseArgs.map(a => a.includes(" ") ? `"${a}"` : a).join(" ");
 
+  function parseOutput(stdout: string): Paper[] {
+    const trimmed = stdout.trim();
+    if (!trimmed) return [];
+    try {
+      const result: ArxivScriptOutput = JSON.parse(trimmed);
+      return (result.top_papers || []).map(normalizeRawPaper);
+    } catch {
+      return [];
+    }
+  }
+
   try {
     const { stdout } = await execAsync(cmd, {
       cwd: path.join(PROJECT_ROOT, "start-my-day"),
@@ -94,19 +105,32 @@ export async function searchPapers(
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     });
 
-    const result: ArxivScriptOutput = JSON.parse(stdout);
-    return result.top_papers.map(normalizeRawPaper);
+    return parseOutput(stdout);
   } catch (err) {
-    // If the full search (with Semantic Scholar) fails, retry with arXiv only
-    console.error("Full search failed, retrying with arXiv only:", err);
-    const fallbackCmd = [...baseArgs, "--skip-hot-papers"].join(" ");
-    const { stdout } = await execAsync(fallbackCmd, {
-      cwd: path.join(PROJECT_ROOT, "start-my-day"),
-      timeout: 60000,
-      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
-    });
+    // Script may exit non-zero when no papers found — try parsing stdout from the error
+    const execErr = err as { stdout?: string };
+    if (execErr.stdout) {
+      const papers = parseOutput(execErr.stdout);
+      if (papers.length > 0) return papers;
+    }
 
-    const result: ArxivScriptOutput = JSON.parse(stdout);
-    return result.top_papers.map(normalizeRawPaper);
+    // Retry with arXiv only (skip Semantic Scholar)
+    console.error("Full search failed, retrying with arXiv only:", err);
+    const fallbackArgs = [...baseArgs, "--skip-hot-papers"];
+    const fallbackCmd = fallbackArgs.map(a => a.includes(" ") ? `"${a}"` : a).join(" ");
+    try {
+      const { stdout } = await execAsync(fallbackCmd, {
+        cwd: path.join(PROJECT_ROOT, "start-my-day"),
+        timeout: 60000,
+        env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+      });
+      return parseOutput(stdout);
+    } catch (fallbackErr) {
+      const fbErr = fallbackErr as { stdout?: string };
+      if (fbErr.stdout) {
+        return parseOutput(fbErr.stdout);
+      }
+      return [];
+    }
   }
 }
