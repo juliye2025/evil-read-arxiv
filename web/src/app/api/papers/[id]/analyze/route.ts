@@ -5,7 +5,7 @@ import type { PaperAnalysis } from "@/lib/types";
 import { type Language, prompts } from "@/lib/i18n";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: RouteContext<"/api/papers/[id]/analyze">
 ) {
   const { id } = await ctx.params;
@@ -23,21 +23,33 @@ export async function GET(
 
     const { client, model } = await createAnthropicClientWithSettings();
 
-    // Fetch paper abstract from arXiv API
-    const arxivRes = await fetch(
-      `https://export.arxiv.org/api/query?id_list=${arxivId}`
-    );
-    const xml = await arxivRes.text();
+    // Try to get title/abstract from query params first (avoids arXiv rate limits)
+    let title = req.nextUrl.searchParams.get("title") || "";
+    let abstract = req.nextUrl.searchParams.get("abstract") || "";
 
-    const titleMatch = xml.match(/<title[^>]*>([\s\S]*?)<\/title>/g);
-    const title = titleMatch && titleMatch.length > 1
-      ? titleMatch[1].replace(/<\/?title[^>]*>/g, "").trim()
-      : "";
+    // Fallback: fetch from arXiv API with retry
+    if (!abstract) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const arxivRes = await fetch(
+          `https://export.arxiv.org/api/query?id_list=${arxivId}`
+        );
+        const xml = await arxivRes.text();
 
-    const summaryMatch = xml.match(/<summary[^>]*>([\s\S]*?)<\/summary>/);
-    const abstract = summaryMatch
-      ? summaryMatch[1].trim()
-      : "";
+        if (xml.includes("Rate exceeded")) {
+          await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+          continue;
+        }
+
+        const titleMatch = xml.match(/<title[^>]*>([\s\S]*?)<\/title>/g);
+        title = titleMatch && titleMatch.length > 1
+          ? titleMatch[1].replace(/<\/?title[^>]*>/g, "").trim()
+          : "";
+
+        const summaryMatch = xml.match(/<summary[^>]*>([\s\S]*?)<\/summary>/);
+        abstract = summaryMatch ? summaryMatch[1].trim() : "";
+        break;
+      }
+    }
 
     if (!abstract) {
       return NextResponse.json(

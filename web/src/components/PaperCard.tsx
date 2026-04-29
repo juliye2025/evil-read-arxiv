@@ -58,7 +58,7 @@ export default function PaperCard({ paper, onFeedback }: PaperCardProps) {
     }
     setShowAnalysis(true);
     setLoadingAnalysis(true);
-    fetchAnalysis(paper.arxiv_id)
+    fetchAnalysis(paper.arxiv_id, paper.title, paper.original_abstract || paper.summary)
       .then((data) => setAnalysis(data))
       .catch((err) => console.error("Analysis failed:", err))
       .finally(() => setLoadingAnalysis(false));

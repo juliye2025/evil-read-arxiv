@@ -28,8 +28,12 @@ export async function fetchPapers(date?: string, range?: string): Promise<Papers
   return fetchJson(`${BASE}/papers${qs ? `?${qs}` : ""}`);
 }
 
-export async function fetchAnalysis(arxivId: string): Promise<PaperAnalysis> {
-  return fetchJson(`${BASE}/papers/${encodeURIComponent(arxivId)}/analyze`);
+export async function fetchAnalysis(arxivId: string, title?: string, abstract?: string): Promise<PaperAnalysis> {
+  const params = new URLSearchParams();
+  if (title) params.set("title", title);
+  if (abstract) params.set("abstract", abstract);
+  const qs = params.toString();
+  return fetchJson(`${BASE}/papers/${encodeURIComponent(arxivId)}/analyze${qs ? `?${qs}` : ""}`);
 }
 
 export async function fetchPaperImages(arxivId: string): Promise<PaperImage[]> {
