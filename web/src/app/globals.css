@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1a1a2e;
+  --border: #30363d;
+  --text-primary: #e0e0e0;
+  --text-secondary: #888888;
+  --accent-blue: #4fc3f7;
+  --accent-green: #66bb6a;
+  --accent-orange: #ffa726;
+  --accent-red: #e53935;
+  --accent-purple: #e040fb;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100dvh;
+}
+
+/* Card swipe animation */
+.card-enter {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.card-enter-active {
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+.card-exit {
+  transform: translateY(0);
+  opacity: 1;
+}
+.card-exit-active {
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+/* Feedback button pulse */
+@keyframes pulse-feedback {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.feedback-pulse {
+  animation: pulse-feedback 0.3s ease;
+}
+
+/* Like bounce animation (Douyin-style) */
+@keyframes like-bounce {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.2); }
+  50% { transform: scale(0.95); }
+  75% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.animate-like-bounce {
+  animation: like-bounce 0.4s ease;
+}
+
+/* Shake animation for dislike */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+.animate-shake {
+  animation: shake 0.3s ease;
+}
+
+/* Image lightbox */
+.lightbox-overlay {
+  animation: lightbox-fade-in 0.2s ease;
+}
+@keyframes lightbox-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}

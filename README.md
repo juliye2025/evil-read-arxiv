@@ -15,6 +15,7 @@
 
 | 日期 | 版本 | 更新内容 |
 |------|------|----------|
+| 2026-04-24 | v2.0 | 新增 Web 应用：基于 Next.js 16 的论文推荐网页端，支持 AI 智能摘要、深度分析、论文图片提取、反馈偏好学习、收藏夹管理、中英双语切换、桌面/移动端多端适配 |
 | 2026-03-13 | v1.1 | 新增 `conf-papers` 技能：支持搜索 CVPR/ICCV/ECCV/ICLR/AAAI/NeurIPS/ICML 等顶级会议论文，基于 DBLP + Semantic Scholar 双数据源，独立配置文件，三维评分推荐 |
 | 2026-03-01 | v1.0 | 初始版本：start-my-day 每日推荐、paper-analyze 论文分析、extract-paper-images 图片提取、paper-search 论文搜索 |
 
@@ -59,40 +60,119 @@
 - 两阶段过滤：标题关键词轻量筛选 → S2 补充 → 三维评分（相关性 40% + 热门度 40% + 质量 20%）
 - 前三篇论文自动生成详细分析（需有 arXiv ID）
 
+### 6. Web 应用 - 论文推荐网页端
+基于 Next.js 16 的独立 Web 应用，提供可视化论文浏览体验。详见 [web/README.zh.md](web/README.zh.md)。
+- **AI 智能摘要** — 搜索论文时自动调用 Claude 批量生成摘要（主要内容 + 创新点）
+- **深入了解** — 按需生成四维深度分析（核心贡献、创新点、方法概要、关键结果），并提取论文插图
+- **兴趣方向搜索** — 支持两种模式：AI 语义筛选已有结果 / 重新搜索 arXiv
+- **反馈与偏好学习** — 喜欢/一般/不感兴趣评价，10 条反馈后 AI 自动分析偏好并调整推荐权重
+- **收藏夹** — 文件夹管理收藏论文，支持拖拽分类
+- **中英双语** — UI 界面和 AI 提示词均支持中英文切换
+- **多端适配** — 桌面双栏布局 + 移动端滑动卡片，支持手势导航
+- **技术栈**：Next.js 16 + React 19 + TypeScript + TailwindCSS 4 + Anthropic Claude SDK
+
 ## 安装
 
 ### 前置要求
 
-1. **Claude Code CLI** - 需要安装并配置 Claude Code
+1. **Claude Code CLI** - 需要安装并配置 Claude Code（CLI 技能所需）
 2. **Python 3.8+** - 用于运行搜索和分析脚本
-3. **依赖库**：
+3. **Node.js 20+** - Web 应用所需
+4. **Anthropic API Key** - Web 应用的 AI 功能所需（Claude）
+5. **Python 依赖**：
    ```bash
    pip install -r requirements.txt
    ```
 
 ### 安装步骤
 
-1. 将此仓库克隆或复制到你的 Claude Code skills 目录：
-   ```bash
-   # Windows PowerShell
-   Copy-Item -Recurse evil-read-arxiv\start-my-day $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\paper-analyze $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\extract-paper-images $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\paper-search $env:USERPROFILE\.claude\skills\
+#### 方式一：CLI 技能安装
 
-   # macOS/Linux
-   cp -r evil-read-arxiv/start-my-day ~/.claude/skills/
-   cp -r evil-read-arxiv/paper-analyze ~/.claude/skills/
-   cp -r evil-read-arxiv/extract-paper-images ~/.claude/skills/
-   cp -r evil-read-arxiv/paper-search ~/.claude/skills/
-   ```
+将技能复制到 Claude Code skills 目录：
 
-2. 配置环境变量和路径（见下文"配置"部分）
+```bash
+# Windows PowerShell
+Copy-Item -Recurse evil-read-arxiv\start-my-day $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\paper-analyze $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\extract-paper-images $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\paper-search $env:USERPROFILE\.claude\skills\
 
-3. 重启 Claude Code CLI
+# macOS/Linux
+cp -r evil-read-arxiv/start-my-day ~/.claude/skills/
+cp -r evil-read-arxiv/paper-analyze ~/.claude/skills/
+cp -r evil-read-arxiv/extract-paper-images ~/.claude/skills/
+cp -r evil-read-arxiv/paper-search ~/.claude/skills/
+```
 
-## 配置
+配置环境变量和路径（见下文"配置"部分），然后重启 Claude Code CLI。
 
+#### 方式二：Web 应用安装
+
+```bash
+# 1. 安装 Python 依赖（项目根目录）
+pip install -r requirements.txt
+
+# 2. 安装 Node 依赖
+cd web
+npm install
+
+# 3. 配置研究兴趣（项目根目录）
+cd ..
+cp config.example.yaml config.yaml
+# 编辑 config.yaml，填入你的研究领域和关键词
+
+# 4. 配置 API Key（三选一，按优先级排序）
+```
+
+**API Key 配置方式：**
+
+**方式 A：`data/api_settings.json`（推荐）**
+
+在项目根目录创建 `data/api_settings.json`：
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "api_key": "sk-ant-your-key",
+  "base_url": "https://api.anthropic.com"
+}
+```
+
+也可以启动应用后在设置页面（`/settings`）中直接配置。
+
+**方式 B：环境变量**
+
+创建 `web/.env.local`：
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-your-key
+# 可选：自定义 API 地址（如代理）
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+```
+
+**方式 C：直接修改源码**（不推荐在公开仓库使用）
+
+修改 `web/src/lib/anthropic.ts` 中的 `DEFAULT_API_KEY` 和 `DEFAULT_BASE_URL` 常量。
+
+> 优先级：`data/api_settings.json` > 环境变量 > 代码默认值
+
+```bash
+# 5. 启动 Web 应用
+cd web
+
+# 开发模式（热更新）
+npm run dev
+
+# 或 生产模式
+npm run build && npm start
+```
+
+打开 http://localhost:3000 ，自动跳转到论文页面。
+
+## CLI 技能配置
+
+> 以下配置仅针对 CLI 技能（start-my-day、paper-analyze 等）。Web 应用的配置已在上文"Web 应用安装"中说明。
+>
 > **强烈建议**：先阅读 [QUICKSTART.md](QUICKSTART.md) 快速完成设置。
 
 ### 步骤1：设置环境变量（推荐）
@@ -252,11 +332,20 @@ evil-read-arxiv/
 │       └── extract_images.py # 图片提取脚本
 ├── paper-search/             # 论文搜索技能
 │   └── SKILL.md
-└── conf-papers/              # 顶会论文搜索推荐技能
-    ├── SKILL.md              # 技能定义文件
-    ├── conf-papers.yaml      # 独立配置（关键词、会议、年份）
-    └── scripts/
-        └── search_conf_papers.py  # DBLP搜索 + S2补充 + 评分
+├── conf-papers/              # 顶会论文搜索推荐技能
+│   ├── SKILL.md              # 技能定义文件
+│   ├── conf-papers.yaml      # 独立配置（关键词、会议、年份）
+│   └── scripts/
+│       └── search_conf_papers.py  # DBLP搜索 + S2补充 + 评分
+└── web/                      # Web 应用（Next.js 16）
+    ├── README.md             # Web 英文文档
+    ├── README.zh.md          # Web 中文文档
+    ├── src/                  # 源码目录
+    │   ├── app/              # Next.js App Router 页面和 API
+    │   ├── components/       # React 组件
+    │   └── lib/              # 工具库和 API 客户端
+    ├── package.json
+    └── next.config.ts
 ```
 
 ## 评分机制
@@ -359,8 +448,6 @@ python scripts/search_arxiv.py --top-n 15
 欢迎提交 Issue 和 Pull Request！
 
 如果你觉得这个项目对你有帮助，请给个 Star ⭐️ 支持一下！
-
-[![Star History Chart](https://api.star-history.com/svg?repos=juliye2025/evil-read-arxiv&type=Date)](https://star-history.com/#juliye2025/evil-read-arxiv&Date)
 
 ## 许可证
 

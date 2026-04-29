@@ -45,40 +45,119 @@ This is a collection of Claude Code Skills for automating research paper search,
 - Support searching by title, author, keywords, domain
 - Sort by relevance score
 
+### 5. Web App - Paper Recommendation Web Interface
+A standalone Next.js 16 web application for visual paper browsing. See [web/README.md](web/README.md) for details.
+- **AI Summaries** — Auto-generated paper summaries (main content + innovations) via Claude
+- **Deep Dive Analysis** — On-demand 4-section analysis (contribution, innovation, method, results) with paper figure extraction
+- **Interest-based Search** — Two modes: AI semantic filtering or fresh arXiv search
+- **Feedback & Preference Learning** — Like/Neutral/Not Interested ratings; AI auto-adjusts weights after 10 feedbacks
+- **Favorites** — Organize liked papers into folders with drag-and-drop
+- **i18n** — Chinese / English UI and AI prompts, switchable in Settings
+- **Responsive** — Desktop dual-panel layout + mobile swipe cards with gesture navigation
+- **Tech Stack**: Next.js 16 + React 19 + TypeScript + TailwindCSS 4 + Anthropic Claude SDK
+
 ## Installation
 
 ### Prerequisites
 
-1. **Claude Code CLI** - Install and configure Claude Code
+1. **Claude Code CLI** - Install and configure Claude Code (required for CLI skills)
 2. **Python 3.8+** - For running search and analysis scripts
-3. **Dependencies**:
+3. **Node.js 20+** - Required for Web app
+4. **Anthropic API Key** - Required for Web app AI features (Claude)
+5. **Python dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
 ### Installation Steps
 
-1. Clone or copy this repository to your Claude Code skills directory:
-   ```bash
-   # Windows PowerShell
-   Copy-Item -Recurse evil-read-arxiv\start-my-day $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\paper-analyze $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\extract-paper-images $env:USERPROFILE\.claude\skills\
-   Copy-Item -Recurse evil-read-arxiv\paper-search $env:USERPROFILE\.claude\skills\
+#### Option A: CLI Skills Installation
 
-   # macOS/Linux
-   cp -r evil-read-arxiv/start-my-day ~/.claude/skills/
-   cp -r evil-read-arxiv/paper-analyze ~/.claude/skills/
-   cp -r evil-read-arxiv/extract-paper-images ~/.claude/skills/
-   cp -r evil-read-arxiv/paper-search ~/.claude/skills/
-   ```
+Copy skills to your Claude Code skills directory:
 
-2. Configure environment variables and paths (see "Configuration" below)
+```bash
+# Windows PowerShell
+Copy-Item -Recurse evil-read-arxiv\start-my-day $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\paper-analyze $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\extract-paper-images $env:USERPROFILE\.claude\skills\
+Copy-Item -Recurse evil-read-arxiv\paper-search $env:USERPROFILE\.claude\skills\
 
-3. Restart Claude Code CLI
+# macOS/Linux
+cp -r evil-read-arxiv/start-my-day ~/.claude/skills/
+cp -r evil-read-arxiv/paper-analyze ~/.claude/skills/
+cp -r evil-read-arxiv/extract-paper-images ~/.claude/skills/
+cp -r evil-read-arxiv/paper-search ~/.claude/skills/
+```
 
-## Configuration
+Configure environment variables and paths (see "Configuration" below), then restart Claude Code CLI.
 
+#### Option B: Web App Installation
+
+```bash
+# 1. Install Python dependencies (project root)
+pip install -r requirements.txt
+
+# 2. Install Node dependencies
+cd web
+npm install
+
+# 3. Configure research interests (project root)
+cd ..
+cp config.example.yaml config.yaml
+# Edit config.yaml with your research domains and keywords
+
+# 4. Configure API Key (choose one, in priority order)
+```
+
+**API Key Configuration:**
+
+**Option A: `data/api_settings.json` (Recommended)**
+
+Create `data/api_settings.json` at the project root:
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "api_key": "sk-ant-your-key",
+  "base_url": "https://api.anthropic.com"
+}
+```
+
+You can also configure this via the Settings page (`/settings`) after launching the app.
+
+**Option B: Environment Variables**
+
+Create `web/.env.local`:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-your-key
+# Optional: custom API endpoint (e.g., proxy)
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+```
+
+**Option C: Edit source code directly** (not recommended for public repos)
+
+Set `DEFAULT_API_KEY` and `DEFAULT_BASE_URL` constants in `web/src/lib/anthropic.ts`.
+
+> Priority: `data/api_settings.json` > Environment variables > Code defaults
+
+```bash
+# 5. Start the Web app
+cd web
+
+# Development (hot reload)
+npm run dev
+
+# Or production
+npm run build && npm start
+```
+
+Open http://localhost:3000 — automatically redirects to the papers page.
+
+## CLI Skills Configuration
+
+> The following configuration is for CLI skills only (start-my-day, paper-analyze, etc.). Web app configuration is covered in the "Web App Installation" section above.
+>
 > **Strongly recommended**: Read [QUICKSTART.md](QUICKSTART.md) for quick setup.
 
 ### Step 1: Set Environment Variables (Recommended)
@@ -220,8 +299,8 @@ paper-search "keyword"
 
 ```
 evil-read-arxiv/
-├── README.md                 # This file
-├── README_en.md              # English version
+├── README.md                 # Chinese version
+├── README_en.md              # This file
 ├── QUICKSTART.md             # Quick start guide
 ├── config.example.yaml       # Config template
 ├── requirements.txt          # Python dependencies
@@ -240,8 +319,22 @@ evil-read-arxiv/
 │   ├── SKILL.md
 │   └── scripts/
 │       └── extract_images.py # Image extraction script
-└── paper-search/             # Paper search skill
-    └── SKILL.md
+├── paper-search/             # Paper search skill
+│   └── SKILL.md
+├── conf-papers/              # Conference paper search skill
+│   ├── SKILL.md              # Skill definition
+│   ├── conf-papers.yaml      # Config (keywords, conferences, year)
+│   └── scripts/
+│       └── search_conf_papers.py  # DBLP search + S2 enrichment + scoring
+└── web/                      # Web app (Next.js 16)
+    ├── README.md             # Web English docs
+    ├── README.zh.md          # Web Chinese docs
+    ├── src/                  # Source code
+    │   ├── app/              # Next.js App Router pages and API
+    │   ├── components/       # React components
+    │   └── lib/              # Utilities and API client
+    ├── package.json
+    └── next.config.ts
 ```
 
 ## Scoring Mechanism
@@ -344,8 +437,6 @@ User inputs "start my day"
 Welcome to submit Issues and Pull Requests!
 
 If you find this project helpful, please give a Star ⭐️!
-
-[![Star History Chart](https://api.star-history.com/svg?repos=juliye2025/evil-read-arxiv&type=Date)](https://star-history.com/#juliye2025/evil-read-arxiv&Date)
 
 ## License
 

@@ -1,0 +1,67 @@
+{
+  "feedback": [
+    {
+      "arxiv_id": "2604.20720v1",
+      "title": "COMPASS: COntinual Multilingual PEFT with Adaptive Semantic Sampling",
+      "rating": "neutral",
+      "date": "2026-04-23",
+      "domain": "大语言模型",
+      "keywords": [
+        "large language model",
+        "LLM",
+        "fine-tuning",
+        "PEFT",
+        "adapter",
+        "RAG",
+        "cs.CL",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL"
+      ]
+    },
+    {
+      "arxiv_id": "2604.20755v1",
+      "title": "V-tableR1: Process-Supervised Multimodal Table Reasoning with Critic-Guided Policy Optimization",
+      "rating": "neutral",
+      "date": "2026-04-23",
+      "domain": "大语言模型",
+      "keywords": [
+        "large language model",
+        "LLM",
+        "reasoning",
+        "chain-of-thought",
+        "alignment",
+        "RAG",
+        "MLLM",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.LG"
+      ]
+    },
+    {
+      "arxiv_id": "2604.21640v1",
+      "title": "Task-specific Subnetwork Discovery in Reinforcement Learning for Autonomous Underwater Navigation",
+      "rating": "neutral",
+      "date": "2026-04-24",
+      "domain": "强化学习",
+      "keywords": [
+        "reinforcement learning",
+        "cs.LG",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.RO"
+      ]
+    }
+  ]
+}
