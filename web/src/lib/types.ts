@@ -107,6 +107,7 @@ export interface AppSettings {
   claude: {
     model: string;
     api_key: string;
+    base_url: string;
     max_tokens: number;
   };
   research: ResearchConfig;

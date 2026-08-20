@@ -12,6 +12,7 @@ export async function GET() {
       claude: {
         model: apiSettings.model || "claude-sonnet-4-6",
         api_key: apiSettings.api_key || "",
+        base_url: apiSettings.base_url || "https://api.anthropic.com",
         max_tokens: 4096,
       },
       research,
