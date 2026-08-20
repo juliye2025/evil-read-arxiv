@@ -11,6 +11,38 @@ const MODEL_OPTIONS = [
   "claude-haiku-4-5-20251001",
 ];
 
+const ORCA_MODEL_OPTIONS = [
+  "orcarouter/auto",
+  "orcarouter/fusion",
+  "orcarouter/fusion-flash",
+  "orcarouter/fusion-mini",
+];
+
+// Provider presets. Selecting a preset fills base_url + model and keeps the
+// entered API key. "anthropic" is the built-in default; "orcarouter" points
+// at the OrcaRouter gateway (https://api.orcarouter.ai), which is compatible
+// with the Anthropic Messages API used by this app.
+const PROVIDER_PRESETS = {
+  anthropic: {
+    label: "Anthropic",
+    base_url: "https://api.anthropic.com",
+    model: "claude-sonnet-4-6",
+  },
+  orcarouter: {
+    label: "OrcaRouter",
+    base_url: "https://api.orcarouter.ai",
+    model: "orcarouter/auto",
+  },
+} as const;
+
+type ProviderPresetKey = keyof typeof PROVIDER_PRESETS;
+
+function presetKeyFor(claude: AppSettings["claude"]): ProviderPresetKey {
+  const base = (claude.base_url || "").replace(/\/+$/, "");
+  if (base === "https://api.orcarouter.ai") return "orcarouter";
+  return "anthropic";
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +155,43 @@ export default function SettingsPage() {
         <p className="text-xs text-[var(--text-secondary)] mb-3">
           {t("settings.claudeConfigDesc")}
         </p>
+        <Field label={t("settings.providerSelection")}>
+          <select
+            value={presetKeyFor(settings.claude)}
+            onChange={(e) => {
+              const preset = PROVIDER_PRESETS[e.target.value as ProviderPresetKey];
+              setSettings({
+                ...settings,
+                claude: {
+                  ...settings.claude,
+                  base_url: preset.base_url,
+                  model: preset.model,
+                },
+              });
+            }}
+            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded px-3 py-2 text-sm lg:text-base"
+          >
+            {(Object.keys(PROVIDER_PRESETS) as ProviderPresetKey[]).map((k) => (
+              <option key={k} value={k}>
+                {PROVIDER_PRESETS[k].label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("settings.baseUrlLabel")}>
+          <input
+            type="text"
+            value={settings.claude.base_url}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                claude: { ...settings.claude, base_url: e.target.value },
+              })
+            }
+            className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded px-3 py-2 text-sm lg:text-base"
+            placeholder="https://api.anthropic.com"
+          />
+        </Field>
         <Field label={t("settings.modelSelection")}>
           <select
             value={settings.claude.model}
@@ -134,11 +203,17 @@ export default function SettingsPage() {
             }
             className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded px-3 py-2 text-sm lg:text-base"
           >
-            {MODEL_OPTIONS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
+            {presetKeyFor(settings.claude) === "orcarouter"
+              ? ORCA_MODEL_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))
+              : MODEL_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
           </select>
         </Field>
         <Field label={t("settings.apiKeyLabel")}>

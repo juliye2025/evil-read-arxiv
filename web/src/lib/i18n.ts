@@ -61,6 +61,8 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings page
     "settings.claudeConfig": "Claude 模型配置",
     "settings.claudeConfigDesc": "已内置默认 API，无需配置即可使用。以下选项仅用于自定义覆盖。",
+    "settings.providerSelection": "服务提供商",
+    "settings.baseUrlLabel": "API 地址 (Base URL)",
     "settings.modelSelection": "模型选择",
     "settings.apiKeyLabel": "API Key（留空使用默认）",
     "settings.apiKeyPlaceholder": "留空使用内置默认 API",
@@ -141,6 +143,8 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings page
     "settings.claudeConfig": "Claude Model Configuration",
     "settings.claudeConfigDesc": "Built-in default API is ready to use. Options below are for custom overrides only.",
+    "settings.providerSelection": "Provider",
+    "settings.baseUrlLabel": "API Base URL",
     "settings.modelSelection": "Model",
     "settings.apiKeyLabel": "API Key (leave empty for default)",
     "settings.apiKeyPlaceholder": "Leave empty to use built-in default API",
