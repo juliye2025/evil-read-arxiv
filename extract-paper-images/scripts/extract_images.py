@@ -9,6 +9,7 @@
 """
 
 import fitz  # PyMuPDF
+import hashlib
 import os
 import json
 import sys
@@ -205,13 +206,22 @@ def find_figures_from_source(temp_dir):
                             'filename': filename
                         })
 
-    # 如果没有找到单独的目录，检查根目录的图片文件
+    # 如果没有找到单独的目录，检查根目录的图片文件。arXiv 源码
+    # 经常把单页矢量图直接放在根目录，而主论文 PDF 是多页文档。
     if not figures:
         for filename in os.listdir(temp_dir):
             file_path = os.path.join(temp_dir, filename)
             if os.path.isfile(file_path):
                 ext = os.path.splitext(filename)[1].lower()
-                if ext in ['.png', '.jpg', '.jpeg'] and 'logo' not in filename.lower() and 'icon' not in filename.lower():
+                lowered = filename.lower()
+                is_candidate = ext in ['.png', '.jpg', '.jpeg']
+                if ext == '.pdf':
+                    try:
+                        with fitz.open(file_path) as candidate_pdf:
+                            is_candidate = candidate_pdf.page_count == 1
+                    except Exception:
+                        is_candidate = False
+                if is_candidate and 'logo' not in lowered and 'icon' not in lowered:
                     figures.append({
                         'type': 'source',
                         'source': 'arxiv-source',
@@ -222,7 +232,13 @@ def find_figures_from_source(temp_dir):
     return figures
 
 
-def extract_pdf_figures(pdf_path, output_dir, min_width=200, min_height=200, min_bytes=5000):
+def extract_pdf_figures(
+    pdf_path,
+    output_dir,
+    min_width=200,
+    min_height=200,
+    min_bytes=5000,
+):
     """从PDF中提取图片（备选方案）
 
     Args:
@@ -240,8 +256,10 @@ def extract_pdf_figures(pdf_path, output_dir, min_width=200, min_height=200, min
         logger.error("无法打开PDF文件: %s (%s)", pdf_path, e)
         return []
 
-    image_list = []
+    candidates = []
     skipped = 0
+    seen_xrefs = set()
+    seen_hashes = set()
 
     try:
         for page_num in range(len(pdf_doc)):
@@ -251,6 +269,10 @@ def extract_pdf_figures(pdf_path, output_dir, min_width=200, min_height=200, min
             if image_list_page:
                 for img_index, img in enumerate(image_list_page):
                     xref = img[0]
+                    if xref in seen_xrefs:
+                        skipped += 1
+                        continue
+                    seen_xrefs.add(xref)
                     try:
                         base_image = pdf_doc.extract_image(xref)
                     except Exception as e:
@@ -271,13 +293,14 @@ def extract_pdf_figures(pdf_path, output_dir, min_width=200, min_height=200, min
                             skipped += 1
                             continue
 
+                        digest = hashlib.sha256(image_bytes).digest()
+                        if digest in seen_hashes:
+                            skipped += 1
+                            continue
+                        seen_hashes.add(digest)
+
                         filename = f'page{page_num + 1}_fig{img_index + 1}.{image_ext}'
-                        filepath = os.path.join(output_dir, filename)
-
-                        with open(filepath, 'wb') as img_file:
-                            img_file.write(image_bytes)
-
-                        image_list.append({
+                        candidates.append({
                             'page': page_num + 1,
                             'index': img_index + 1,
                             'filename': filename,
@@ -285,13 +308,23 @@ def extract_pdf_figures(pdf_path, output_dir, min_width=200, min_height=200, min
                             'size': len(image_bytes),
                             'width': img_width,
                             'height': img_height,
-                            'ext': image_ext
+                            'ext': image_ext,
+                            '_bytes': image_bytes,
+                            '_area': img_width * img_height,
                         })
     finally:
         pdf_doc.close()
 
+    image_list = []
+    for item in candidates:
+        filepath = os.path.join(output_dir, item['filename'])
+        with open(filepath, 'wb') as img_file:
+            img_file.write(item.pop('_bytes'))
+        item.pop('_area')
+        image_list.append(item)
+
     if skipped:
-        print(f"  已过滤 {skipped} 张小图片/图标 (< {min_width}x{min_height}px 或 < {min_bytes/1024:.0f}KB)")
+        print(f"  已过滤 {skipped} 张完全重复或不满足原有尺寸阈值的图片")
 
     return image_list
 
@@ -365,6 +398,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         all_figures = []
+        processed_source_pdfs = set()
 
         if input_url and not arxiv_id:
             pdf_path = download_public_pdf(input_url, temp_dir)
@@ -379,14 +413,23 @@ def main():
                 if source_figures:
                     print(f"\n从arXiv源码找到 {len(source_figures)} 个图片文件")
                     for fig in source_figures:
+                        extension = os.path.splitext(fig['filename'])[1].lower()
+                        if extension == '.pdf':
+                            processed_source_pdfs.add(os.path.realpath(fig['path']))
+                            extracted = extract_from_pdf_figures(fig['path'], output_dir)
+                            for converted in extracted:
+                                converted['source'] = 'arxiv-source'
+                                all_figures.append(converted)
+                                print(f"  - {converted['filename']}")
+                            continue
+
                         output_file = os.path.join(output_dir, fig['filename'])
                         shutil.copy2(fig['path'], output_file)
-
                         all_figures.append({
                             'filename': fig['filename'],
                             'path': f'images/{fig["filename"]}',
                             'size': os.path.getsize(output_file),
-                            'ext': os.path.splitext(fig['filename'])[1][1:].lower(),
+                            'ext': extension[1:],
                             'source': fig['source']
                         })
                         print(f"  - {fig['filename']}")
@@ -402,19 +445,28 @@ def main():
                 fig['source'] = 'pdf-extraction'
                 all_figures.append(fig)
 
-        # 步骤3: 检查源码包中的PDF图片文件并提取
+        # arXiv 源码中的独立单页 PDF 常用于矢量插图。原实现会在这里
+        # 连同刚下载的多页主论文 PDF 一起逐页转换，产生整页截图副本。
+        # 继续支持任意目录中的单页 PDF 插图，但明确跳过主论文与已处理项。
         if arxiv_id and os.path.exists(temp_dir):
-            for root, dirs, files in os.walk(temp_dir):
+            main_pdf_path = os.path.realpath(pdf_path) if pdf_path else None
+            for root, _dirs, files in os.walk(temp_dir):
                 for file in files:
-                    if file.endswith('.pdf') and 'logo' not in file.lower() and file != f'{arxiv_id}.tar.gz':
-                        pdf_fig_path = os.path.join(root, file)
-                        try:
-                            extracted = extract_from_pdf_figures(pdf_fig_path, output_dir)
-                            for fig in extracted:
-                                fig['source'] = 'pdf-figure'
-                                all_figures.append(fig)
-                        except Exception as e:
-                            logger.warning("  跳过无法处理的PDF: %s (%s)", file, e)
+                    if not file.lower().endswith('.pdf') or 'logo' in file.lower():
+                        continue
+                    source_pdf = os.path.realpath(os.path.join(root, file))
+                    if source_pdf == main_pdf_path or source_pdf in processed_source_pdfs:
+                        continue
+                    try:
+                        with fitz.open(source_pdf) as candidate_pdf:
+                            if candidate_pdf.page_count != 1:
+                                continue
+                        extracted = extract_from_pdf_figures(source_pdf, output_dir)
+                        for fig in extracted:
+                            fig['source'] = 'pdf-figure'
+                            all_figures.append(fig)
+                    except Exception as e:
+                        logger.warning("  跳过无法处理的PDF: %s (%s)", file, e)
 
     # 生成索引文件
     with open(index_file, 'w', encoding='utf-8') as f:
