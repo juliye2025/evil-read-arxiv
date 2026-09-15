@@ -435,6 +435,12 @@ def resolve_source(user_input, work_dir):
             result["local_pdf"] = fetched.get("local_pdf", "")
             result["page_count"] = fetched.get("page_count")
             result["content_length"] = fetched.get("content_length")
+            # arXiv abstract endpoints may be rate-limited while the PDF is
+            # still available. Preserve metadata embedded in the downloaded
+            # PDF so downstream notes do not lose title and author fields.
+            for field in ("title", "authors", "published_date"):
+                if fetched.get(field):
+                    result[field] = fetched[field]
         except Exception as exc:
             result["download_error"] = str(exc)
         return result

@@ -687,8 +687,17 @@ def calculate_relevance_score(
                 score += RELEVANCE_CATEGORY_MATCH_BOOST
                 dm_keywords.append(cat)
 
-        if score > max_domain_score:
-            max_domain_score = score
+        # Config documents priority on a 1-10 scale. Keep 5 backward-compatible
+        # while allowing the configured priority to affect domain selection.
+        priority = domain_config.get('priority', 5)
+        try:
+            priority = max(1.0, min(10.0, float(priority)))
+        except (TypeError, ValueError):
+            priority = 5.0
+        weighted_score = min(score * (priority / 5.0), SCORE_MAX)
+
+        if weighted_score > max_domain_score:
+            max_domain_score = weighted_score
             best_domain = domain_name
             domain_matched_keywords = dm_keywords
 

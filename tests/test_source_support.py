@@ -7,6 +7,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +77,25 @@ class SourceSupportTests(unittest.TestCase):
         self.assertIsNone(
             resolver.normalize_arxiv_id("https://example.com/posts/2026.0601/")
         )
+
+    def test_arxiv_uses_downloaded_pdf_metadata(self):
+        fetched = {
+            "kind": "pdf",
+            "local_pdf": "/tmp/example.pdf",
+            "page_count": 12,
+            "content_length": 1234,
+            "title": "Metadata Title",
+            "authors": "Author One; Author Two",
+            "published_date": "2026-02-02",
+        }
+        with tempfile.TemporaryDirectory() as work, patch.object(
+            resolver, "fetch_public_url", return_value=fetched
+        ):
+            result = resolver.resolve_source("2602.02269", work)
+
+        self.assertEqual(result["title"], "Metadata Title")
+        self.assertEqual(result["authors"], "Author One; Author Two")
+        self.assertEqual(result["published_date"], "2026-02-02")
 
     def test_markdown_link_normalization(self):
         markdown = f"[paper.pdf]({self.base_url}/paper.pdf)"
@@ -147,6 +167,51 @@ class SourceSupportTests(unittest.TestCase):
             path = extractor.download_public_pdf(f"{self.base_url}/paper.pdf", work)
             self.assertIsNotNone(path)
             self.assertTrue(Path(path).read_bytes().startswith(b"%PDF-"))
+
+    def test_source_figure_discovery_has_no_default_count_limit(self):
+        with tempfile.TemporaryDirectory() as work:
+            figures_dir = Path(work) / "figures"
+            figures_dir.mkdir()
+            for index in range(30):
+                (figures_dir / f"figure-{index}.png").write_bytes(b"image")
+
+            figures = extractor.find_figures_from_source(work)
+
+        self.assertEqual(len(figures), 30)
+
+    def test_image_extractor_does_not_render_main_paper_as_source_figure(self):
+        with tempfile.TemporaryDirectory() as work, tempfile.TemporaryDirectory() as output:
+            work_path = Path(work)
+            main_pdf = work_path / "2602.02269.pdf"
+            figure_pdf = work_path / "appendix-assets" / "method.pdf"
+            figure_pdf.parent.mkdir()
+            for path, page_count in ((main_pdf, 2), (figure_pdf, 1)):
+                document = extractor.fitz.open()
+                for _ in range(page_count):
+                    document.new_page()
+                document.save(path)
+                document.close()
+
+            converted = []
+
+            def record_conversion(path, _output_dir):
+                converted.append(Path(path).name)
+                return []
+
+            index = Path(output) / "index.md"
+            argv = ["extract_images.py", "2602.02269", output, str(index)]
+            with patch.object(extractor.tempfile, "TemporaryDirectory") as temp_dir, patch.object(
+                extractor, "extract_arxiv_source", return_value=True
+            ), patch.object(extractor, "find_figures_from_source", return_value=[]), patch.object(
+                extractor, "download_arxiv_pdf", return_value=str(main_pdf)
+            ), patch.object(extractor, "extract_pdf_figures", return_value=[]), patch.object(
+                extractor, "extract_from_pdf_figures", side_effect=record_conversion
+            ), patch.object(sys, "argv", argv):
+                temp_dir.return_value.__enter__.return_value = work
+                temp_dir.return_value.__exit__.return_value = False
+                extractor.main()
+
+        self.assertEqual(converted, ["method.pdf"])
 
     def test_non_arxiv_graph_node_uses_document_id(self):
         with tempfile.TemporaryDirectory() as vault:
