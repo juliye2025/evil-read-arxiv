@@ -167,6 +167,41 @@ Set `DEFAULT_API_KEY` and `DEFAULT_BASE_URL` constants in `web/src/lib/anthropic
 
 > Priority: `data/api_settings.json` > Environment variables > Code defaults
 
+### Using OrcaRouter as your AI provider
+
+You can also point the web app's AI features at [OrcaRouter](https://www.orcarouter.ai) — a unified model gateway. It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
+
+**Option A: select OrcaRouter in Settings**
+
+In the Settings page (`/settings`), choose **OrcaRouter** from the "Provider" dropdown. It fills in:
+
+```json
+{
+  "model": "orcarouter/auto",
+  "api_key": "sk-orca-your-key",
+  "base_url": "https://api.orcarouter.ai"
+}
+```
+
+**Option B: `data/api_settings.json`**
+
+```json
+{
+  "model": "orcarouter/auto",
+  "api_key": "sk-orca-your-key",
+  "base_url": "https://api.orcarouter.ai"
+}
+```
+
+**Option C: environment variables**
+
+```bash
+ANTHROPIC_API_KEY=sk-orca-your-key
+ANTHROPIC_BASE_URL=https://api.orcarouter.ai
+```
+
+OrcaRouter is compatible with the Anthropic Messages API (`/v1/messages`) — the SDK appends the `/v1` path automatically. `orcarouter/auto` is the smart-routing model. Get a key at [orcarouter.ai](https://www.orcarouter.ai).
+
 ```bash
 # 5. Start the Web app
 cd web

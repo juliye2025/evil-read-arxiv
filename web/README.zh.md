@@ -77,6 +77,34 @@ ANTHROPIC_BASE_URL=https://api.anthropic.com
 
 优先级：`data/api_settings.json` > 环境变量 > 代码默认值。
 
+### 使用 OrcaRouter 作为 AI 服务提供商
+
+也可以把 Web 应用的 AI 能力指向 [OrcaRouter](https://www.orcarouter.ai)——一个统一模型网关，在同一个端点上提供网关级、零信任的 AI 代理安全防护：对每条提示词/响应进行筛查，并以默认拒绝的方式治理每一个工具调用，无需修改任何应用代码。
+
+**方式 A：设置页选择 OrcaRouter**
+
+在设置页（`/settings`）的"服务提供商"下拉里选择 **OrcaRouter**，会自动填入：
+
+```json
+{
+  "model": "orcarouter/auto",
+  "api_key": "sk-orca-你的密钥",
+  "base_url": "https://api.orcarouter.ai"
+}
+```
+
+**方式 B：`data/api_settings.json`**
+
+```json
+{
+  "model": "orcarouter/auto",
+  "api_key": "sk-orca-your-key",
+  "base_url": "https://api.orcarouter.ai"
+}
+```
+
+OrcaRouter 兼容 Anthropic Messages API（`/v1/messages`），SDK 会自动拼接 `/v1` 路径；`orcarouter/auto` 为智能路由模型。在 [orcarouter.ai](https://www.orcarouter.ai) 获取密钥。
+
 ### 3. 配置研究兴趣
 
 在项目根目录复制示例配置：
