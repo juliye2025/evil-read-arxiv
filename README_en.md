@@ -202,6 +202,41 @@ ANTHROPIC_BASE_URL=https://api.orcarouter.ai
 
 OrcaRouter is compatible with the Anthropic Messages API (`/v1/messages`) — the SDK appends the `/v1` path automatically. `orcarouter/auto` is the smart-routing model. Get a key at [orcarouter.ai](https://www.orcarouter.ai).
 
+### Using Atlas Cloud as your AI provider
+
+You can also point the web app's AI features at [Atlas Cloud](https://www.atlascloud.ai) — a multi-model gateway (DeepSeek, Z.ai, Moonshot, Qwen, OpenAI, Anthropic and others behind one key).
+
+**Option A: select Atlas Cloud in Settings**
+
+In the Settings page (`/settings`), choose **Atlas Cloud** from the "Provider" dropdown. It fills in:
+
+```json
+{
+  "model": "deepseek-ai/deepseek-v4-flash",
+  "api_key": "your-atlas-cloud-key",
+  "base_url": "https://api.atlascloud.ai"
+}
+```
+
+**Option B: `data/api_settings.json`**
+
+```json
+{
+  "model": "deepseek-ai/deepseek-v4-flash",
+  "api_key": "your-atlas-cloud-key",
+  "base_url": "https://api.atlascloud.ai"
+}
+```
+
+**Option C: environment variables**
+
+```bash
+ANTHROPIC_API_KEY=your-atlas-cloud-key
+ANTHROPIC_BASE_URL=https://api.atlascloud.ai
+```
+
+Atlas Cloud is compatible with the Anthropic Messages API (`/v1/messages`) — the SDK appends the `/v1` path automatically. Model ids are vendor-prefixed, e.g. `deepseek-ai/deepseek-v4-flash` or `moonshotai/kimi-k3`. Get a key at [console.atlascloud.ai](https://console.atlascloud.ai/api-keys).
+
 ```bash
 # 5. Start the Web app
 cd web

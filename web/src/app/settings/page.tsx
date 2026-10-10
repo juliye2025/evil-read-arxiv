@@ -18,10 +18,21 @@ const ORCA_MODEL_OPTIONS = [
   "orcarouter/fusion-mini",
 ];
 
+const ATLAS_MODEL_OPTIONS = [
+  "deepseek-ai/deepseek-v4-flash",
+  "deepseek-ai/deepseek-v4-pro",
+  "moonshotai/kimi-k3",
+  "zai-org/glm-5.2",
+  "qwen/qwen3.5-plus",
+  "anthropic/claude-sonnet-4.6",
+  "openai/gpt-5.5",
+];
+
 // Provider presets. Selecting a preset fills base_url + model and keeps the
-// entered API key. "anthropic" is the built-in default; "orcarouter" points
-// at the OrcaRouter gateway (https://api.orcarouter.ai), which is compatible
-// with the Anthropic Messages API used by this app.
+// entered API key. "anthropic" is the built-in default; "orcarouter" and
+// "atlascloud" point at gateways (https://api.orcarouter.ai,
+// https://api.atlascloud.ai) that are compatible with the Anthropic Messages
+// API used by this app.
 const PROVIDER_PRESETS = {
   anthropic: {
     label: "Anthropic",
@@ -33,13 +44,25 @@ const PROVIDER_PRESETS = {
     base_url: "https://api.orcarouter.ai",
     model: "orcarouter/auto",
   },
+  atlascloud: {
+    label: "Atlas Cloud",
+    base_url: "https://api.atlascloud.ai",
+    model: "deepseek-ai/deepseek-v4-flash",
+  },
 } as const;
 
 type ProviderPresetKey = keyof typeof PROVIDER_PRESETS;
 
+const MODEL_OPTIONS_BY_PRESET: Record<ProviderPresetKey, readonly string[]> = {
+  anthropic: MODEL_OPTIONS,
+  orcarouter: ORCA_MODEL_OPTIONS,
+  atlascloud: ATLAS_MODEL_OPTIONS,
+};
+
 function presetKeyFor(claude: AppSettings["claude"]): ProviderPresetKey {
   const base = (claude.base_url || "").replace(/\/+$/, "");
   if (base === "https://api.orcarouter.ai") return "orcarouter";
+  if (base === "https://api.atlascloud.ai") return "atlascloud";
   return "anthropic";
 }
 
@@ -203,17 +226,11 @@ export default function SettingsPage() {
             }
             className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded px-3 py-2 text-sm lg:text-base"
           >
-            {presetKeyFor(settings.claude) === "orcarouter"
-              ? ORCA_MODEL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))
-              : MODEL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
+            {MODEL_OPTIONS_BY_PRESET[presetKeyFor(settings.claude)].map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label={t("settings.apiKeyLabel")}>

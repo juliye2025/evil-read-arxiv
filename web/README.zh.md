@@ -105,6 +105,34 @@ ANTHROPIC_BASE_URL=https://api.anthropic.com
 
 OrcaRouter 兼容 Anthropic Messages API（`/v1/messages`），SDK 会自动拼接 `/v1` 路径；`orcarouter/auto` 为智能路由模型。在 [orcarouter.ai](https://www.orcarouter.ai) 获取密钥。
 
+### 使用 Atlas Cloud 作为 AI 服务提供商
+
+也可以把 Web 应用的 AI 能力指向 [Atlas Cloud](https://www.atlascloud.ai)——一个多模型网关，用同一把密钥访问 DeepSeek、智谱、月之暗面、Qwen、OpenAI、Anthropic 等模型。
+
+**方式 A：设置页选择 Atlas Cloud**
+
+在设置页（`/settings`）的"服务提供商"下拉里选择 **Atlas Cloud**，会自动填入：
+
+```json
+{
+  "model": "deepseek-ai/deepseek-v4-flash",
+  "api_key": "你的 Atlas Cloud 密钥",
+  "base_url": "https://api.atlascloud.ai"
+}
+```
+
+**方式 B：`data/api_settings.json`**
+
+```json
+{
+  "model": "deepseek-ai/deepseek-v4-flash",
+  "api_key": "your-atlas-cloud-key",
+  "base_url": "https://api.atlascloud.ai"
+}
+```
+
+Atlas Cloud 兼容 Anthropic Messages API（`/v1/messages`），SDK 会自动拼接 `/v1` 路径；模型 ID 带厂商前缀，例如 `deepseek-ai/deepseek-v4-flash`、`moonshotai/kimi-k3`。在 [console.atlascloud.ai](https://console.atlascloud.ai/api-keys) 获取密钥。
+
 ### 3. 配置研究兴趣
 
 在项目根目录复制示例配置：
