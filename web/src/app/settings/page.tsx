@@ -18,10 +18,21 @@ const ORCA_MODEL_OPTIONS = [
   "orcarouter/fusion-mini",
 ];
 
+const CHEAPER_INFERENCE_MODEL_OPTIONS = [
+  "gpt-5.4-mini",
+  "gpt-5.4",
+  "claude-sonnet-5",
+  "gemini-3.1-pro",
+  "deepseek-v4-flash",
+  "glm-5.3",
+];
+
 // Provider presets. Selecting a preset fills base_url + model and keeps the
 // entered API key. "anthropic" is the built-in default; "orcarouter" points
-// at the OrcaRouter gateway (https://api.orcarouter.ai), which is compatible
-// with the Anthropic Messages API used by this app.
+// at the OrcaRouter gateway (https://api.orcarouter.ai) and
+// "cheaperinference" at the Cheaper Inference gateway
+// (https://api.cheaperinference.com). Both are compatible with the Anthropic
+// Messages API used by this app.
 const PROVIDER_PRESETS = {
   anthropic: {
     label: "Anthropic",
@@ -33,6 +44,11 @@ const PROVIDER_PRESETS = {
     base_url: "https://api.orcarouter.ai",
     model: "orcarouter/auto",
   },
+  cheaperinference: {
+    label: "Cheaper Inference",
+    base_url: "https://api.cheaperinference.com",
+    model: "gpt-5.4-mini",
+  },
 } as const;
 
 type ProviderPresetKey = keyof typeof PROVIDER_PRESETS;
@@ -40,7 +56,14 @@ type ProviderPresetKey = keyof typeof PROVIDER_PRESETS;
 function presetKeyFor(claude: AppSettings["claude"]): ProviderPresetKey {
   const base = (claude.base_url || "").replace(/\/+$/, "");
   if (base === "https://api.orcarouter.ai") return "orcarouter";
+  if (base === "https://api.cheaperinference.com") return "cheaperinference";
   return "anthropic";
+}
+
+function modelOptionsFor(key: ProviderPresetKey): string[] {
+  if (key === "orcarouter") return ORCA_MODEL_OPTIONS;
+  if (key === "cheaperinference") return CHEAPER_INFERENCE_MODEL_OPTIONS;
+  return MODEL_OPTIONS;
 }
 
 export default function SettingsPage() {
@@ -203,17 +226,11 @@ export default function SettingsPage() {
             }
             className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded px-3 py-2 text-sm lg:text-base"
           >
-            {presetKeyFor(settings.claude) === "orcarouter"
-              ? ORCA_MODEL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))
-              : MODEL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
+            {modelOptionsFor(presetKeyFor(settings.claude)).map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label={t("settings.apiKeyLabel")}>

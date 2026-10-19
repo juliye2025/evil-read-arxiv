@@ -218,6 +218,41 @@ ANTHROPIC_BASE_URL=https://api.orcarouter.ai
 
 OrcaRouter 兼容 Anthropic Messages API（`/v1/messages`），SDK 会自动拼接 `/v1` 路径；`orcarouter/auto` 为智能路由模型。在 [orcarouter.ai](https://www.orcarouter.ai) 获取密钥。
 
+### 使用 Cheaper Inference 作为 AI 服务提供商
+
+也可以把 Web 应用的 AI 能力指向 [Cheaper Inference](https://cheaperinference.com)——一个 OpenAI 兼容的 LLM 网关，同时提供 Anthropic Messages API（`/v1/messages`）。
+
+**方式 A：设置页选择 Cheaper Inference**
+
+在设置页（`/settings`）的"服务提供商"下拉里选择 **Cheaper Inference**，会自动填入：
+
+```json
+{
+  "model": "gpt-5.4-mini",
+  "api_key": "ci_live_你的密钥",
+  "base_url": "https://api.cheaperinference.com"
+}
+```
+
+**方式 B：`data/api_settings.json`**
+
+```json
+{
+  "model": "gpt-5.4-mini",
+  "api_key": "ci_live_your-key",
+  "base_url": "https://api.cheaperinference.com"
+}
+```
+
+**方式 C：环境变量**
+
+```bash
+ANTHROPIC_API_KEY=ci_live_your-key
+ANTHROPIC_BASE_URL=https://api.cheaperinference.com
+```
+
+SDK 会自动拼接 `/v1` 路径。模型 ID 不带前缀，例如 `gpt-5.4-mini`、`claude-sonnet-5`。在 [cheaperinference.com](https://cheaperinference.com/signup) 获取密钥。
+
 ```bash
 # 5. 启动 Web 应用
 cd web
