@@ -105,6 +105,34 @@ In the Settings page (`/settings`), choose **OrcaRouter** from the "Provider" dr
 
 OrcaRouter is compatible with the Anthropic Messages API (`/v1/messages`) — the SDK appends the `/v1` path automatically. `orcarouter/auto` is the smart-routing model. Get a key at [orcarouter.ai](https://www.orcarouter.ai).
 
+### Using Cheaper Inference as your AI provider
+
+You can also point the web app's AI features at [Cheaper Inference](https://cheaperinference.com) — an OpenAI-compatible LLM gateway that also serves the Anthropic Messages API (`/v1/messages`).
+
+**Option A: select Cheaper Inference in Settings**
+
+In the Settings page (`/settings`), choose **Cheaper Inference** from the "Provider" dropdown. It fills in:
+
+```json
+{
+  "model": "gpt-5.4-mini",
+  "api_key": "ci_live_your-key",
+  "base_url": "https://api.cheaperinference.com"
+}
+```
+
+**Option B: `data/api_settings.json`**
+
+```json
+{
+  "model": "gpt-5.4-mini",
+  "api_key": "ci_live_your-key",
+  "base_url": "https://api.cheaperinference.com"
+}
+```
+
+The SDK appends the `/v1` path automatically. Model IDs are bare, e.g. `gpt-5.4-mini` or `claude-sonnet-5`. Get a key at [cheaperinference.com](https://cheaperinference.com/signup).
+
 ### 3. Configure Research Interests
 
 Copy the example config at the project root:
